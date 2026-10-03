@@ -9,6 +9,7 @@ agent never sees them as structured data, only the listing text.
 """
 import hashlib
 import os
+import re
 from datetime import datetime, timezone
 
 import httpx
@@ -42,12 +43,11 @@ def stock_photo(listing):
     """A plausible picture for a listing without one: desktops only (a stock PC photo on a laptop or a
     graphics card would mislead), chosen deterministically per listing."""
     title = (listing.get("title") or "").lower()
-    text = f"{title} {listing.get('description', '')[:200]}".lower()
-    is_pc = any(w in title for w in ("pc", "dator", "rig", "computer"))
+    is_pc = bool(re.search(r"\b(pc|dator|speldator|gamingdator|rig|computer)\b", title))
     if (any(w in title for w in _LAPTOP + ("köpes", "wtb", "monitor", "skärm", "chassi", "ps5", "xbox"))
             or title.startswith(("grafikkort", "graphics card", "rtx", "gtx", "rx ")) and not is_pc):
         return None
-    if not any(w in text for w in ("dator", "pc", "gaming", "rtx", "gtx", "rx ", "ryzen", "intel")):
+    if not is_pc:
         return None
     return STOCK_PC[_h(listing.get("id", ""), len(STOCK_PC))]
 
@@ -64,9 +64,16 @@ def normalize(x):
             pass
     photos = x.get("photos") or []
     lid = x["id"]
+    # These fields are public listing details, not seller-only ground truth.
+    details = [f"{k}: {v}" for k, v in (x.get("attributes") or {}).items() if v is not None]
+    if x.get("condition"):
+        details.append("Condition: " + str(x["condition"]))
+    description = x.get("description") or ""
+    if details:
+        description += "\nListing details:\n" + "\n".join(details)
     l = {
         "id": lid, "source": "mockbay", "title": x.get("title") or x.get("productName") or lid,
-        "description": x.get("description") or "", "price_sek": int(x.get("price") or 0),
+        "description": description, "price_sek": int(x.get("price") or 0),
         "location": x.get("location") or "", "shipping": bool(x.get("shipping")), "posted_days_ago": days,
         "seller": {"name": s.get("name") or "seller", "account_age_days": max(1, (datetime.now(timezone.utc) - datetime(int(since), 1, 1, tzinfo=timezone.utc)).days),
                    "num_reviews": s.get("sales") or 0, "rating": s.get("rating")},
@@ -76,7 +83,8 @@ def normalize(x):
     # hidden data for the simulated seller (deterministic per listing; never shown to the buyer agent)
     l["_hidden"] = {
         "true_specs": {"gpu": x.get("gpu"), "ram_gb": x.get("ram"), "storage": x.get("storage"),
-                       "cpu": (x.get("attributes") or {}).get("Processor"), "condition": x.get("condition")},
+                       "cpu": (x.get("attributes") or {}).get("Processor"), "condition": x.get("condition"),
+                       **(x.get("attributes") or {})},
         "min_price_sek": int(round(price * (0.80 + _h(lid, 12) / 100) / 50) * 50) if price else None,
         "personality": PERSONALITIES[_h(lid + "p", len(PERSONALITIES))],
         "language": "sv", "is_scam": since >= 2026 and (s.get("rating") or 5) < 2,

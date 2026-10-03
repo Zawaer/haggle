@@ -156,7 +156,7 @@ class Hunt:
         async def ext(l):
             await asyncio.sleep(random.random() * 0.5)
             try:
-                specs = await pipeline.extract(l, self.budget)
+                specs = await pipeline.extract(l, self.budget, self.req)
             except Exception as e:
                 await self.set_state(l["id"], "error", reason=str(e)[:200])
                 return l, None
@@ -165,9 +165,9 @@ class Hunt:
             return l, specs
 
         extracted = await asyncio.gather(*(ext(l) for l in found))
-        market = self.market_ref = pipeline.market_reference(extracted)
+        market = self.market_ref = pipeline.market_reference(extracted, self.req)
         if market:
-            await self.emit("status", text=f"Market reference for comparable PCs: ~{market:,.0f} kr (median asking)")
+            await self.emit("status", text=f"Market reference for comparable items: ~{market:,.0f} kr (median asking)")
 
         await self.phase_to("vet")
         for l, specs in extracted:
@@ -280,7 +280,7 @@ class Hunt:
         lid = l["id"]
         self.items[lid] = {"id": lid, "listing": l, "state": "found", "thread": [], "new": True}
         await self.emit("found", id=lid, listing=l, new=True)
-        specs = await pipeline.extract(l, self.budget)
+        specs = await pipeline.extract(l, self.budget, self.req)
         l["_lang"] = specs["language"]
         await self.set_state(lid, "extracted", specs=specs)
         verdicts = pipeline.match(l, specs, self.req)
@@ -351,7 +351,7 @@ class Hunt:
                 if any(v["status"] != "pass" for k, v in it.get("verdicts", {}).items() if k != "price"):
                     continue
                 facts.append(it["seller_price"])
-        return "\n".join(f"- another seller is at {p:,.0f} SEK for a comparable PC" for p in sorted(facts)[:2])
+        return "\n".join(f"- another seller is at {p:,.0f} SEK for a comparable item" for p in sorted(facts)[:2])
 
     def _claim_ok(self, lid, claimed):
         if not claimed:
@@ -440,12 +440,13 @@ class Hunt:
             if got is None:
                 await self.set_state(lid, "no_reply", reason="seller did not reply in time")
                 return
-            r = await negotiation.read_seller(it["thread"], got["text"], got.get("price_sek"), self.budget)
+            r = await negotiation.read_seller(it["thread"], got["text"], got.get("price_sek"), self.budget, req=self.req)
             if self.closed or it["state"] != "negotiating":
                 return
             if len(re.findall(r"[A-Za-zÅÄÖåäö]", got["text"])) < 3:
                 r["action"] = "reply"
             learned = dict(r.get("learned_specs") or {})
+            learned["attributes"] = pipeline.attribute_facts(r.get("attributes"), self.req, got["text"])
             for key in ("working", "condition"):
                 if r.get(key) not in (None, "unknown"):
                     learned[key] = r[key]
@@ -504,11 +505,15 @@ class Hunt:
         for key in ("working", "condition"):
             if learned.get(key):
                 specs[key] = learned[key]
+        if learned.get("attributes"):
+            attrs = {f["key"]: f for f in specs.get("attributes", [])}
+            attrs.update({f["key"]: f for f in learned["attributes"]})
+            specs["attributes"] = list(attrs.values())
         if specs == it["specs"]:
             return None
         v = pipeline.match(it["listing"], specs, self.req)
         it["specs"], it["verdicts"] = specs, v
-        fails = [f"{k}: {x['reason']}" for k, x in v.items() if x["status"] == "fail" and k not in ("price",)]
+        fails = [f"{x.get('label', k)}: {x['reason']}" for k, x in v.items() if x["status"] == "fail" and k not in ("price",)]
         await self.emit("listing", id=lid, state=it["state"], verdicts=v, specs=specs)
         return "; ".join(fails) or None
 

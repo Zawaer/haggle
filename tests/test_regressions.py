@@ -266,8 +266,9 @@ class RequirementsTests(Base):
 
     async def test_unsupported_constraints_are_not_silently_dropped(self):
         with patch.object(pipeline, "ask_json", AsyncMock(return_value=dict(REQ, unsupported_requirements=["CPU model"]))):
-            with self.assertRaisesRegex(ValueError, "CPU model"):
-                await pipeline.intake("specific CPU", Budget())
+            req = await pipeline.intake("specific CPU", Budget())
+            self.assertEqual(req["attributes"][0]["label"], "CPU model")
+            self.assertEqual(req["attributes"][0]["value"], "yes")
 
 
 class CompressionTests(Base):

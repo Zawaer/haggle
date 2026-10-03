@@ -24,8 +24,8 @@ MAX_WAIT = 75  # seconds per tool call: stays under typical proxy timeouts (~100
 mcp = MCPServer(
     name="haggle",
     instructions="haggle finds, vets and negotiates second-hand purchases on mockbay, a simulated marketplace with "
-                 "simulated sellers. Flow: make sure you know the max budget (SEK), the kind of item (desktop PC / laptop / "
-                 "graphics card), what it's for or the minimum specs, and pickup city or shipping; ask the user for "
+                 "simulated sellers. Flow: make sure you know the max budget (SEK), the kind of product (any category), "
+                 "required attributes or intended use, and pickup city or shipping; ask the user for "
                  "anything missing in ONE message (clarify_request suggests the questions) -> start_hunt with the "
                  "complete brief -> show the user the shortlist "
                  "and drafted messages -> approve_outreach ONLY after the user explicitly agrees -> show the deals -> "
@@ -72,6 +72,7 @@ def _summary(h):
         out["error"] = getattr(h, "error", "the hunt failed")
     if h.req:
         out["requirements"] = h.req.get("summary")
+        out["attribute_requirements"] = h.req.get("attributes", [])
     q = next((e for e in reversed(h.events) if e["type"] == "question"), None)
     if q and h.answer_future and not h.answer_future.done():
         out["question_for_user"] = q["text"]
@@ -79,7 +80,7 @@ def _summary(h):
     if short and not h.closed:
         out["shortlist"] = [{"listing_id": i["id"], "title": i["listing"]["title"], "photo_url": i["listing"].get("photo"),
                              "listing_url": i["listing"].get("url"), "asking_sek": i["listing"]["price_sek"],
-                             "location": i["listing"]["location"], "score": i.get("score"),
+                             "location": i["listing"]["location"], "score": i.get("score"), "checks": i.get("verdicts", {}),
                              "draft_message": (i.get("draft") or {}).get("message"),
                              "opening_offer_sek": (i.get("draft") or {}).get("offer_sek")} for i in short]
         out["next"] = "Show the shortlist and drafts to the user; call approve_outreach with the ids they approve."
