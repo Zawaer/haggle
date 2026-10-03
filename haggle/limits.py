@@ -12,7 +12,10 @@ PER_HOUR = int(os.environ.get("HAGGLE_HUNTS_PER_HOUR", "40"))         # live hun
 PER_CLIENT_HOUR = int(os.environ.get("HAGGLE_HUNTS_PER_CLIENT_HOUR", "8"))
 DAILY_CALLS = int(os.environ.get("HAGGLE_DAILY_CALL_CAP", "5000"))    # Gemini calls per 24 h, all users
 
+CLARIFY_PER_CLIENT_HOUR = int(os.environ.get("HAGGLE_CLARIFY_PER_CLIENT_HOUR", "40"))
+
 _starts = deque()        # (time, client)
+_clarifies = deque()     # (time, client)
 _calls = deque()         # time of every Gemini call
 
 
@@ -53,3 +56,16 @@ def check_new_hunt(hunts, client=None):
     if client and sum(1 for _, c in _starts if c == client) >= PER_CLIENT_HOUR:
         raise LimitError("You've started a lot of hunts this hour. Try again later, or watch the recorded replay (?replay=1).")
     _starts.append((now, client))
+
+
+def check_clarify(client=None):
+    """One cheap Gemini call per request; still capped so a public URL can't be looped."""
+    now = time.time()
+    _trim(now)
+    while _clarifies and now - _clarifies[0][0] > 3600:
+        _clarifies.popleft()
+    if len(_calls) >= DAILY_CALLS:
+        raise LimitError("Today's Gemini budget for this public demo is used up. Try the recorded replay (?replay=1).")
+    if sum(1 for _, c in _clarifies if c == client) >= CLARIFY_PER_CLIENT_HOUR:
+        raise LimitError("Too many requests this hour. Try again later.")
+    _clarifies.append((now, client))

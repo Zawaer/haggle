@@ -167,6 +167,7 @@ main { max-width: var(--maxw); margin: 0 auto; padding: 0 var(--pad) 40px; }
 .mk.pass { color: var(--ink); }
 .mk.fail { color: var(--red); }
 .mk.uncertain { color: var(--ochre); }
+.mk.negotiable { color: var(--accent); }
 .mk.none { color: var(--rule-2); cursor: default; }
 .mk.sel { border-bottom-color: currentColor; }
 .c-risk { display: flex; align-items: center; gap: 8px; font-size: .84rem; }
@@ -492,3 +493,15 @@ body.running #mic-btn { display: none; }
 .c-title .t a:hover { text-decoration: underline; text-underline-offset: 3px; }
 .error.notice { color: var(--ink); border-top-color: var(--ink); }
 .error.notice p { margin: .3rem 0; font-size: 1.1rem; }
+
+/* clarifying questions before a hunt */
+.clarify { margin: 18px 0 6px; padding: 18px 20px; border: 1.5px solid var(--ink); background: var(--paper-2, #FBFAF5); }
+.clarify-h { margin: 0 0 4px; font-size: 1.1rem; }
+.clarify-sum { margin: 0 0 12px; }
+.cq { margin: 0 0 14px; }
+.cq-q { display: block; font-weight: 600; margin-bottom: 6px; }
+.cq-opts { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+.chip { font: 500 .9rem var(--sans, inherit); border: 1.5px solid var(--ink); background: transparent; padding: .3rem .65rem; border-radius: 2px; cursor: pointer; }
+.chip.on, .chip:hover { background: var(--ink); color: var(--paper); }
+.cq input { width: 100%; max-width: 30em; font: inherit; padding: .5rem .6rem; border: 1.5px solid var(--ink); background: #fff; border-radius: 2px; }
+.clarify-actions { display: flex; gap: 10px; margin-top: 6px; }

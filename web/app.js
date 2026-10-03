@@ -37,7 +37,7 @@
   const VLABEL = { type: "Type", gpu: "GPU", ram: "RAM", storage: "SSD", price: "Price", location: "Location", works: "Works" };
   const VORDER = ["type", "gpu", "ram", "storage", "price", "location", "works"];
   const MARKS = ["type", "gpu", "ram", "storage", "price", "location"]; // ledger columns
-  const VICON = { pass: "✓", fail: "✗", uncertain: "?" };
+  const VICON = { pass: "✓", fail: "✗", uncertain: "?", negotiable: "↓" };
   const REJECTED = new Set(["reject"]);
   const LIVE_STATES = new Set(["approved", "negotiating"]);
   const DEAD_STATES = new Set(["walked_away", "dropped", "seller_declined", "no_deal", "released"]);
@@ -77,7 +77,7 @@
   // ------------------------------------------------------------------ api
   async function api(path, body) {
     const r = await fetch(path, { method: body ? "POST" : "GET", headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
-    if (r.status === 401) { location.href = "/login"; throw new Error("Sign in required"); }
+    if (r.status === 401) { location.href = `/login?next=${encodeURIComponent(location.pathname + location.search)}`; throw new Error("Sign in required"); }
     if (!r.ok) {
       const t = await r.text().catch(() => "");
       let msg = t;
@@ -135,19 +135,67 @@
     } catch { /* server down for a moment: keep waiting */ }
   }, 4000);
 
-  async function startHunt() {
+  // ------------------------------------------------------------------ clarifying questions (before the hunt)
+  // The hunt itself never asks: questions happen here (or in the agent's chat via the skill / MCP).
+  const CQ = { el: $("#clarify"), qs: $("#clarify-qs"), sum: $("#clarify-sum"), form: $("#clarify-form"), list: [], request: "" };
+  function hideClarify() { CQ.el.classList.add("hidden"); CQ.list = []; }
+  function showClarify(request, res) {
+    CQ.request = request; CQ.list = res.questions;
+    CQ.sum.textContent = res.summary || "";
+    CQ.qs.innerHTML = res.questions.map((q, i) => `<div class="cq">
+      <label class="cq-q" for="cq-${i}">${esc(q.question)}</label>
+      <div class="cq-opts">${(q.options || []).map((o) => `<button type="button" class="chip" data-q="${i}">${esc(o)}</button>`).join("")}</div>
+      <input id="cq-${i}" type="text" placeholder="Or type your answer"></div>`).join("");
+    CQ.el.classList.remove("hidden");
+    setTimeout(() => $("#cq-0")?.focus(), 50);
+  }
+  CQ.qs.addEventListener("click", (e) => {
+    const c = e.target.closest(".chip"); if (!c) return;
+    const i = c.dataset.q;
+    CQ.qs.querySelectorAll(`.chip[data-q="${i}"]`).forEach((x) => x.classList.toggle("on", x === c));
+    $(`#cq-${i}`).value = c.textContent;
+  });
+  CQ.form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const answers = CQ.list.map((q, i) => ({ question: q.question, answer: $(`#cq-${i}`).value.trim() })).filter((a) => a.answer);
+    const request = CQ.request;
+    hideClarify();
+    launch(request, { answers, clarified: true });
+  });
+  $("#clarify-skip").addEventListener("click", () => { const r = CQ.request; hideClarify(); launch(r, { clarified: true }); });
+
+  async function startHunt(opts = {}) {
     const replay = E.replay.checked;
     const request = E.request.value.trim();
     if (!replay && !request) { E.request.focus(); return; }
+    hideClarify();
+    if (replay || opts.clarified) return launch(request, opts);
+    E.huntBtn.disabled = true;
+    setStatus("Checking what I need to know…");
+    try {
+      const res = await api("/api/clarify", { request });
+      if (res.questions && res.questions.length) { showClarify(request, res); setStatus("A few questions first"); return; }
+    } catch (e) {
+      if (/limit|budget|Too many/i.test(e.message)) { showError(e.message); return; }
+      // clarify unavailable: don't block the hunt
+    } finally {
+      E.huntBtn.disabled = false;
+    }
+    launch(request, { clarified: true });
+  }
+
+  async function launch(request, opts = {}) {
+    const replay = E.replay.checked;
     E.huntBtn.disabled = true;
     try {
-      const { id } = await api("/api/hunts", { request: replay ? "" : request, replay });
+      const { id } = await api("/api/hunts", { request: replay ? "" : request, replay, answers: opts.answers || [], clarified: !!opts.clarified });
       resetUI();
       S.started = true; S.gone = false;
       E.echo.textContent = replay ? "Replaying a recorded hunt…" : request;
       document.body.classList.add("running");
       autosize();
       const p = new URLSearchParams(location.search);
+      p.delete("q"); p.delete("go");  // a deep link starts one hunt, not one per reload
       p.set("h", id);
       history.replaceState(null, "", `?${p}`);
       setPhase("intake");
@@ -381,7 +429,9 @@
 
     // status
     const st = $(".c-st", card);
-    st.textContent = STATE_LABEL[it.state] || it.state;
+    const onlyPrice = it.state === "uncertain" && it.verdicts &&
+      Object.values(it.verdicts).every((v) => v.status === "pass" || v.status === "negotiable");
+    st.textContent = onlyPrice ? "over budget, negotiable" : (STATE_LABEL[it.state] || it.state);
     st.className = `c-st ${it.state === "found" || it.state === "extracted" ? "busy mono" : ""}`;
     if (it.state === "deal_offered" || it.state === "confirmed") st.innerHTML = `<span class="money">${it.state === "confirmed" ? "confirmed" : "deal"} ${kr(it.deal?.price_sek)}</span>`;
 
@@ -916,6 +966,14 @@
       `<p><a href="?h=${encodeURIComponent(hunt.id)}">${esc(hunt.request)} (${esc(hunt.phase)})</a></p>`).join("")}`;
     E.form.after(list);
   }).catch(() => {});
+
+  // deep link from the Gemini app skill: /?q=<complete brief>&go=1 (questions were already asked in chat)
+  const deep = params.get("q");
+  if (deep && !params.get("h") && !E.replay.checked) {
+    E.request.value = deep.slice(0, 2000);
+    autosize();
+    if (params.get("go") === "1") setTimeout(() => startHunt({ clarified: true }), 300);
+  }
 
   // resume a hunt after a page reload (?h=<id>)
   const resume = params.get("h");

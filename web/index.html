@@ -30,6 +30,17 @@
       <button id="hunt-btn" type="submit" class="btn btn-ink btn-hunt">Hunt <span aria-hidden="true">→</span></button>
     </div>
   </form>
+  <section id="clarify" class="clarify hidden" aria-live="polite">
+    <h2 class="clarify-h">A few questions first</h2>
+    <p id="clarify-sum" class="clarify-sum muted"></p>
+    <form id="clarify-form" autocomplete="off">
+      <div id="clarify-qs"></div>
+      <div class="clarify-actions">
+        <button type="submit" class="btn btn-ink">Start hunt <span aria-hidden="true">→</span></button>
+        <button type="button" id="clarify-skip" class="btn btn-line">Skip</button>
+      </div>
+    </form>
+  </section>
   <p id="request-echo" class="hidden"></p>
   <p class="hint" id="hint">Searches mockbay, our mock second-hand marketplace: listings and sellers are simulated. Nothing is sent to a seller without your approval.</p>
 

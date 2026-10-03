@@ -23,6 +23,10 @@ STOCKHOLM_AREA = [
 
 # ---------------------------------------------------------------- 1. Intake
 
+# Listings asking up to this much over budget are still worth messaging (sellers usually come down 10-20%).
+NEGOTIABLE_OVER = 1.25
+EXPECTED_AFTER_HAGGLE = 0.9   # typical final price / asking price, used only for ranking
+
 INTAKE_SCHEMA = {
     "type": "object",
     "properties": {
@@ -58,10 +62,70 @@ INTAKE_SCHEMA = {
 }
 
 
-async def intake(request, budget, answer=None):
+CLARIFY_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "ready": {"type": "boolean", "description": "True if the request already has a budget, the kind of item and "
+                                                    "enough detail to search well. Then questions may be empty."},
+        "summary": {"type": "string", "description": "One-line restatement of what you understood so far."},
+        "questions": {
+            "type": "array", "maxItems": 3,
+            "description": "0-3 short questions, most important first. Ask ONLY about things that change the search: "
+                           "max budget (always ask if missing), kind of item (desktop / laptop / graphics card), what it is "
+                           "for or the minimum specs (e.g. which games -> GPU), and pickup city or shipping. Never ask about "
+                           "things already stated. Same language as the request.",
+            "items": {"type": "object", "properties": {
+                "id": {"type": "string", "enum": ["budget", "category", "use", "specs", "location", "other"]},
+                "question": {"type": "string"},
+                "options": {"type": "array", "maxItems": 4, "items": {"type": "string"},
+                            "description": "2-4 short, typical answers the user can tap, e.g. '8 000 kr', 'Stockholm, pickup'."},
+            }, "required": ["id", "question", "options"]},
+        },
+    },
+    "required": ["ready", "summary", "questions"],
+}
+
+
+_SV = re.compile(r"[åäö]|\b(jag|vill|ett|och|har|behöver|söker|dator|datorn|köpa|billig|begagnad|helst)\b", re.I)
+
+
+def language(text):
+    """'Swedish' or 'English': decided in code, because the model drifts to Swedish for a Swedish marketplace."""
+    return "Swedish" if _SV.search(text or "") else "English"
+
+
+async def clarify(request, budget):
+    """Before a hunt: which questions to ask the user first (web app, or the agent's skill via MCP).
+    The hunt itself then never asks: it only searches, vets and negotiates."""
+    lang = language(request)
+    result = await ask_json(
+        f"User request: {request}\nWrite the summary, questions and options in {lang}.", CLARIFY_SCHEMA, budget=budget,
+        system="You help a shopper buying second-hand electronics in Sweden (desktop PCs, laptops, graphics cards) "
+               "on a marketplace. Decide what you still need to know before searching. Ask as few questions as "
+               "possible; a request with a budget, the kind of item and the main specs is ready. Write in the "
+               "language the user wrote in.",
+    )
+    qs = [q for q in result.get("questions") or [] if (q.get("question") or "").strip()][:3]
+    for q in qs:
+        q["options"] = [o for o in (q.get("options") or []) if str(o).strip()][:4]
+    return {"ready": bool(result.get("ready")) and not qs, "summary": result.get("summary", ""), "questions": qs}
+
+
+def with_answers(request, answers):
+    """Fold the user's answers to the clarifying questions into the request text."""
+    lines = [f"- {a['question'].strip()} {a['answer'].strip()}" for a in answers or []
+             if (a.get("answer") or "").strip()]
+    return request.strip() + ("\nAnswers to follow-up questions:\n" + "\n".join(lines) if lines else "")
+
+
+async def intake(request, budget, answer=None, clarified=False):
     prompt = f"User request: {request}"
     if answer:
         prompt += f"\nAnswer to your clarifying question: {answer}\nDo not ask another question."
+    elif clarified:
+        prompt += ("\nThe user already answered the follow-up questions. Do NOT ask anything: leave clarifying_question "
+                   "empty and use sensible defaults for anything still unstated, EXCEPT the budget: if no budget was given "
+                   "anywhere, set budget_max_sek to 0 (never guess a budget).")
     result = await ask_json(
         prompt, INTAKE_SCHEMA, budget=budget,
         system="You turn a shopper's request for a second-hand purchase in Sweden into structured requirements. "
@@ -69,11 +133,13 @@ async def intake(request, budget, answer=None):
                "only the search queries mix Swedish and English.",
     )
 
+    if clarified:
+        result["clarifying_question"] = ""
     if result.get("clarifying_question", "").strip() and not answer:
         return result
     ceiling = result["budget_max_sek"]
     if not isinstance(ceiling, (int, float)) or not math.isfinite(ceiling) or ceiling <= 0:
-        raise ValueError("Please give a positive budget in SEK.")
+        raise ValueError("Please give a maximum budget in SEK (ask the user, then start a new hunt).")
     if result["category"] not in ("desktop_pc", "laptop", "gpu_only"):
         raise ValueError("This version supports desktop PCs, laptops and graphics cards. Please narrow the request.")
     if result.get("unsupported_requirements"):
@@ -202,7 +268,8 @@ def match(listing, specs, req):
     p, bmax = listing["price_sek"], req["budget_max_sek"]
     v["price"] = (
         ("pass", f"{p:,} kr asking") if p <= bmax else
-        ("uncertain", f"{p:,} kr asking, {p - bmax:,} over budget: needs negotiation") if p <= bmax * 1.25 else
+        ("negotiable", f"{p:,} kr asking, {p - bmax:,} over budget: worth haggling, offers stay under budget")
+        if p <= bmax * NEGOTIABLE_OVER else
         ("fail", f"{p:,} kr asking, far over budget"))
 
     if location_matches(listing["location"], req.get("city")):
@@ -247,7 +314,9 @@ def risk(listing, specs, market):
 
 
 def overall(verdicts, risk_score):
-    statuses = [v["status"] for v in verdicts.values()]
+    # "negotiable" (asking a bit over budget) counts like "uncertain": shortlistable, but the deal must come in
+    # under budget, and the budget guardrail never lets an offer exceed it
+    statuses = ["uncertain" if v["status"] == "negotiable" else v["status"] for v in verdicts.values()]
     if risk_score >= 60:
         return "scam"
     if "fail" in statuses:
@@ -261,7 +330,8 @@ def overall(verdicts, risk_score):
 
 def rank_score(listing, specs, verdicts, risk_score, req):
     """Higher is better. Price headroom, spec margin, risk and convenience, all explainable."""
-    price = listing["price_sek"]
+    # rank on the price we expect after haggling, not the asking price: everything gets negotiated
+    price = listing["price_sek"] * EXPECTED_AFTER_HAGGLE
     price_pts = 40 * max(0.0, min(1.0, (req["budget_max_sek"] * 1.25 - price) / (req["budget_max_sek"] * 0.6)))
     gs = gpu_score(specs["gpu"]) or 0
     need = gpu_score(req["gpu_min"]) or 100 if req["gpu_min"] else 100

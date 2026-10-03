@@ -13,7 +13,7 @@ import os
 from mcp.server.mcpserver import MCPServer, Context
 from mcp.server.transport_security import TransportSecuritySettings
 
-from . import limits
+from . import limits, pipeline
 from .orchestrator import HUNTS, Hunt
 
 # Where the live dashboard is reachable for the user (Render sets RENDER_EXTERNAL_URL automatically).
@@ -24,7 +24,10 @@ MAX_WAIT = 75  # seconds per tool call: stays under typical proxy timeouts (~100
 mcp = MCPServer(
     name="haggle",
     instructions="haggle finds, vets and negotiates second-hand purchases on mockbay, a simulated marketplace with "
-                 "simulated sellers. Flow: start_hunt -> (answer_question if it asks one) -> show the user the shortlist "
+                 "simulated sellers. Flow: make sure you know the max budget (SEK), the kind of item (desktop PC / laptop / "
+                 "graphics card), what it's for or the minimum specs, and pickup city or shipping; ask the user for "
+                 "anything missing in ONE message (clarify_request suggests the questions) -> start_hunt with the "
+                 "complete brief -> show the user the shortlist "
                  "and drafted messages -> approve_outreach ONLY after the user explicitly agrees -> show the deals -> "
                  "confirm_deal ONLY with the deal the user picks. Each call waits at most ~75 s; if 'phase' is not yet "
                  "awaiting_approval / awaiting_confirmation / done, call hunt_status with wait_seconds=60 until it is. "
@@ -94,10 +97,28 @@ async def _wait(h, seconds):
 
 
 @mcp.tool()
+async def clarify_request(request: str, ctx: Context = None) -> dict:
+    """Before start_hunt: which questions to ask the user, with typical answers to offer.
+    Returns {ready, summary, questions: [{id, question, options}]}. Ask the user these questions yourself
+    (all in one message), then call start_hunt with the request plus their answers. If ready, just start."""
+    from .llm import Budget
+    if not request.strip():
+        return {"error": "describe what to buy"}
+    owner = _owner(ctx)
+    try:
+        limits.check_clarify(owner)
+    except limits.LimitError as e:
+        return {"error": str(e)}
+    return await pipeline.clarify(request.strip()[:2000], Budget(cap=4))
+
+
+@mcp.tool()
 async def start_hunt(request: str, wait_seconds: int = 60, ctx: Context = None) -> dict:
-    """Start a hunt for a second-hand item described in plain language (budget, specs, location).
-    Waits up to wait_seconds (max 75) for the shortlist or a clarifying question, then returns the status;
-    if not there yet, poll hunt_status(wait_seconds=60). Give the user the dashboard_url to watch live."""
+    """Start a hunt from a COMPLETE brief: max budget in SEK, kind of item, minimum specs or use, and pickup
+    city or shipping, e.g. "Gaming PC under 8,000 SEK, RTX 3060 or better, 16 GB RAM, 1 TB SSD, Stockholm".
+    Ask the user for missing details first; haggle does not ask follow-up questions itself.
+    Waits up to wait_seconds (max 75) for the shortlist, then returns the status; if not there yet,
+    poll hunt_status(wait_seconds=60). Give the user the dashboard_url to watch live."""
     if not request.strip():
         return {"error": "describe what to buy"}
     owner = _owner(ctx)
@@ -105,7 +126,7 @@ async def start_hunt(request: str, wait_seconds: int = 60, ctx: Context = None) 
         limits.check_new_hunt(HUNTS, owner)
     except limits.LimitError as e:
         return {"error": str(e)}
-    h = Hunt(request.strip()[:2000], owner=owner)
+    h = Hunt(request.strip()[:2000], owner=owner, clarified=True)
     _bg(h.run())
     await asyncio.sleep(0.2)
     await _wait(h, min(wait_seconds, MAX_WAIT))

@@ -34,10 +34,11 @@ MANIPULATION = re.compile(
 
 
 class Hunt:
-    def __init__(self, request, owner="local"):
+    def __init__(self, request, owner="local", clarified=False):
         self.id = uuid.uuid4().hex[:8]
         self.request = request
         self.owner = owner
+        self.clarified = clarified  # questions were already asked (web card or the agent's skill): never ask again
         self.closed = False
         self.tasks = {}
         self.watch_task = None
@@ -132,7 +133,7 @@ class Hunt:
 
     async def _discover(self):
         await self.emit("status", text="Understanding your request…")
-        self.req = await pipeline.intake(self.request, self.budget)
+        self.req = await pipeline.intake(self.request, self.budget, clarified=self.clarified)
         if self.req["clarifying_question"].strip():
             self.answer_future = asyncio.get_running_loop().create_future()
             await self.emit("question", text=self.req["clarifying_question"])

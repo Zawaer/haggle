@@ -11,13 +11,14 @@ import asyncio
 import contextlib
 import json
 import logging
+from urllib.parse import quote
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, StreamingResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import limits
+from . import limits, pipeline
 from .config import ROOT
 from . import auth, inbox
 from .orchestrator import HUNTS, Hunt, restore_hunts
@@ -85,7 +86,9 @@ async def access_control(request: Request, call_next):
     owner = auth.identity(request)
     if not owner:
         if path in ("/", "/inbox"):
-            return RedirectResponse("/login", status_code=303)
+            # keep the query so a deep link (e.g. /?go=1&q=... from the Gemini skill) survives signing in
+            target = path + (f"?{request.url.query}" if request.url.query else "")
+            return RedirectResponse(f"/login?next={quote(target, safe='')}", status_code=303)
         return JSONResponse({"detail": "sign in or provide a bearer token"}, status_code=401)
     request.state.owner = owner
     return await call_next(request)
@@ -101,7 +104,9 @@ async def login(body: Login, request: Request):
     if not owner:
         raise HTTPException(401, "invalid access token")
     response = JSONResponse({"ok": True})
-    response.set_cookie("haggle_session", auth.session(owner), httponly=True, samesite="strict",
+    # lax (not strict): links from other sites (the Gemini app skill) must arrive signed in; cross-site writes
+    # stay blocked by the Origin check above and lax cookies are never sent on cross-site POSTs
+    response.set_cookie("haggle_session", auth.session(owner), httponly=True, samesite="lax",
                         secure=request.url.scheme == "https", max_age=86400)
     return response
 
@@ -132,10 +137,22 @@ async def resume(hid: str, request: Request):
     return {"ok": True}
 
 
+class Answer(BaseModel):
+    question: str = Field(default="", max_length=500)
+    answer: str = Field(default="", max_length=500)
+
+
 class Req(BaseModel):
     model_config = {"str_strip_whitespace": True}
     request: str = Field(max_length=10000)
     replay: bool = False
+    answers: list[Answer] = Field(default_factory=list, max_length=6)  # answers to /api/clarify questions
+    clarified: bool = False   # questions were already asked: the hunt must not ask again
+
+
+class ClarifyReq(BaseModel):
+    model_config = {"str_strip_whitespace": True}
+    request: str = Field(min_length=1, max_length=10000)
 
 
 class Text(BaseModel):
@@ -163,9 +180,25 @@ async def start(body: Req, request: Request):
             limits.check_new_hunt(HUNTS, request.state.owner)
         except limits.LimitError as e:
             raise HTTPException(429, str(e))
-        h = Hunt(body.request.strip(), owner=request.state.owner)
+        text = pipeline.with_answers(body.request, [a.model_dump() for a in body.answers])
+        h = Hunt(text, owner=request.state.owner, clarified=body.clarified or bool(body.answers))
     _bg(h.run())
     return {"id": h.id}
+
+
+@app.post("/api/clarify")
+async def clarify(body: ClarifyReq, request: Request):
+    """Questions to ask before a hunt: {ready, summary, questions: [{id, question, options}]}."""
+    try:
+        limits.check_clarify(request.state.owner)
+    except limits.LimitError as e:
+        raise HTTPException(429, str(e))
+    from .llm import Budget
+    try:
+        return await pipeline.clarify(body.request, Budget(cap=4))
+    except Exception as e:  # never block a hunt on this: the web app falls back to starting directly
+        logging.getLogger("haggle").warning("clarify failed: %s", e)
+        return {"ready": True, "summary": "", "questions": [], "error": "clarify unavailable"}
 
 
 @app.post("/api/hunts/{hid}/answer")
