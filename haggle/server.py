@@ -346,8 +346,7 @@ async def health():
 async def info():
     """Where this instance runs (shown in the footer), e.g. HAGGLE_HOST_LABEL="Matrix OS" in .env."""
     import os
-    import socket
-    return {"host_label": os.environ.get("HAGGLE_HOST_LABEL", ""), "hostname": socket.gethostname()}
+    return {"host_label": os.environ.get("HAGGLE_HOST_LABEL", "")}  # no hostname: it can contain a username
 
 
 @app.post("/api/transcribe")

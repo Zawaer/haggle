@@ -1048,7 +1048,7 @@
   E.form.addEventListener("submit", (e) => { e.preventDefault(); startHunt(); });
 
   fetch("/api/info").then((r) => r.json()).then((i) => {
-    if (i.host_label) $("#hostlbl").innerHTML = ` · running on <b>${esc(i.host_label)}</b> <span class="mono">(${esc(i.hostname)})</span>`;
+    if (i.host_label) $("#hostlbl").innerHTML = ` · running on <b>${esc(i.host_label)}</b>`;
   }).catch(() => {});
 
   // ------------------------------------------------------------------ voice input (Gemini 3.5 Transcribe)
