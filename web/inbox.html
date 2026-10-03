@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mockbay · Säljarinkorg</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --paper:#F3F0E8; --paper-2:#FBFAF5; --ink:#151515; --mute:#6A655B; --faint:#9A9488; --rule:#D8D3C7; --accent:#E5482B; --sans:"IBM Plex Sans",system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,monospace; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--paper); color:var(--ink); font:16px/1.45 var(--sans); }
+  header { display:flex; align-items:baseline; gap:16px; padding:22px 28px; border-bottom:2px solid var(--ink); }
+  header b { font-size:1.5rem; letter-spacing:-.02em; } header span { color:var(--mute); }
+  .wrap { display:grid; grid-template-columns: 340px 1fr; min-height: calc(100vh - 72px); }
+  aside { border-right:1px solid var(--rule); padding:18px 0; overflow:auto; }
+  h3 { margin:0 20px 8px; font-size:.82rem; color:var(--mute); font-weight:500; }
+  .item { display:block; width:100%; text-align:left; border:0; background:none; padding:12px 20px; border-bottom:1px solid var(--rule); cursor:pointer; font:inherit; color:inherit; }
+  .item:hover, .item.sel { background:var(--paper-2); }
+  .item .t { font-weight:600; display:block; } .item .m { font:13px var(--mono); color:var(--mute); }
+  .tag { font:11px var(--mono); padding:1px 6px; border:1px solid var(--ink); border-radius:2px; margin-left:6px; }
+  .tag.human { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .claim { display:flex; justify-content:space-between; align-items:center; gap:10px; padding:10px 20px; border-bottom:1px solid var(--rule); }
+  .claim .t { font-weight:500; font-size:.95rem; }
+  button.b { font:600 .9rem var(--sans); border:1.5px solid var(--ink); background:transparent; padding:.5rem .8rem; border-radius:2px; cursor:pointer; white-space:nowrap; }
+  button.b.ink { background:var(--ink); color:var(--paper); } button.b.on { background:var(--accent); border-color:var(--accent); color:#fff; }
+  main { display:flex; flex-direction:column; min-width:0; }
+  .head { padding:18px 28px; border-bottom:1px solid var(--rule); display:flex; justify-content:space-between; gap:16px; align-items:center; flex-wrap:wrap; }
+  .head .t { font-weight:600; font-size:1.15rem; } .head .m { font:13px var(--mono); color:var(--mute); }
+  .chat { flex:1; overflow:auto; padding:20px 28px; display:flex; flex-direction:column; gap:14px; }
+  .msg { max-width: 640px; } .msg .who { font:12px var(--mono); color:var(--mute); }
+  .msg .txt { white-space:pre-wrap; } .msg.seller { align-self:flex-end; text-align:right; }
+  .msg.seller .txt { background:var(--ink); color:var(--paper); padding:10px 14px; display:inline-block; text-align:left; }
+  .msg.buyer .txt { border-left:3px solid var(--accent); padding:2px 12px; }
+  .ai { font:11px var(--mono); background:var(--accent); color:#fff; padding:1px 5px; border-radius:2px; margin-left:4px; }
+  .price { font:13px var(--mono); border:1px solid var(--rule); padding:1px 6px; margin-top:4px; display:inline-block; }
+  form { display:flex; gap:10px; padding:16px 28px; border-top:1px solid var(--rule); background:var(--paper-2); flex-wrap:wrap; }
+  form input { font:inherit; padding:.7rem .8rem; border:1.5px solid var(--ink); background:#fff; border-radius:2px; }
+  #txt { flex:1; min-width:200px; } #pr { width:130px; font-family:var(--mono); }
+  .empty { color:var(--mute); padding:40px 28px; }
+  .hint { color:var(--mute); font-size:.9rem; margin:6px 20px 14px; }
+  @media (max-width: 760px) { .wrap { grid-template-columns: 1fr; } aside { border-right:0; border-bottom:1px solid var(--rule); max-height:42vh; } }
+</style>
+</head>
+<body>
+<header><b>mockbay</b><span>Säljarinkorg · seller inbox (demo)</span></header>
+<div class="wrap">
+  <aside>
+    <div id="claimSec" hidden>
+      <h3>Play a seller (before the agent writes)</h3>
+      <p class="hint">Claim a shortlisted seller and you answer instead of the bot.</p>
+      <div id="claim"></div>
+    </div>
+    <h3>Conversations</h3>
+    <div id="list"><p class="hint">No conversations yet. They appear when the agent messages a seller.</p></div>
+  </aside>
+  <main>
+    <div class="head" id="head" hidden>
+      <div><div class="t" id="ht"></div><div class="m" id="hm"></div></div>
+      <button class="b" id="modeBtn"></button>
+    </div>
+    <div class="chat" id="chat"><p class="empty">Pick a conversation.</p></div>
+    <form id="form" hidden>
+      <input id="txt" placeholder="Svara köparen… (reply as the seller)" autocomplete="off">
+      <input id="pr" type="number" placeholder="pris, kr" min="0" step="50">
+      <button class="b ink" type="submit">Skicka</button>
+    </form>
+  </main>
+</div>
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const kr = (n) => n == null ? "" : `${Math.round(n).toLocaleString("sv-SE")} kr`;
+  let sel = new URLSearchParams(location.search).get("id"), after = 0, data = { threads: [], claimable: [] };
+
+  async function api(path, method = "GET", body) {
+    const r = await fetch(path, { method, headers: body ? { "Content-Type": "application/json" } : {}, body: body ? JSON.stringify(body) : undefined });
+    if (!r.ok) throw new Error(r.status); return r.json();
+  }
+  async function setMode(id, mode) { await api(`/api/inbox/${id}/mode`, "PUT", { mode }); refresh(); }
+
+  function renderList() {
+    $("#claimSec").hidden = !data.claimable.length;
+    $("#claim").innerHTML = data.claimable.map((c) => `<div class="claim"><div><div class="t">${esc(c.title)}</div><div class="m mono" style="font:13px var(--mono);color:var(--mute)">${kr(c.price_sek)} · ${esc(c.seller || "")}</div></div>
+      <button class="b ${c.mode === "human" ? "on" : ""}" data-claim="${esc(c.id)}" data-mode="${c.mode === "human" ? "bot" : "human"}">${c.mode === "human" ? "You play this" : "Play this seller"}</button></div>`).join("");
+    if (!data.threads.length) return;
+    $("#list").innerHTML = data.threads.map((t) => `<button class="item ${t.id === sel ? "sel" : ""}" data-id="${esc(t.id)}">
+      <span class="t">${esc(t.title)}<span class="tag ${t.mode}">${t.mode === "human" ? "you" : "bot"}</span></span>
+      <span class="m">${kr(t.price_sek)} · ${esc(t.seller || "")} · ${t.n} msg</span></button>`).join("");
+  }
+
+  function renderHead() {
+    const t = data.threads.find((x) => x.id === sel);
+    $("#head").hidden = !t; $("#form").hidden = !t;
+    if (!t) return;
+    $("#ht").textContent = t.title;
+    $("#hm").textContent = `${kr(t.price_sek)} · ${t.location || ""} · seller ${t.seller || ""}`;
+    const b = $("#modeBtn");
+    b.textContent = t.mode === "human" ? "You're replying · hand back to bot" : "Bot is replying · take over";
+    b.className = `b ${t.mode === "human" ? "on" : ""}`;
+    b.onclick = () => setMode(t.id, t.mode === "human" ? "bot" : "human");
+  }
+
+  async function loadChat(reset) {
+    if (!sel) return;
+    if (reset) { after = 0; $("#chat").innerHTML = ""; }
+    const msgs = await api(`/api/inbox/${sel}/messages?after=${after}`);
+    for (const m of msgs) {
+      after = Math.max(after, m.seq);
+      const el = document.createElement("div");
+      el.className = `msg ${m.from}`;
+      el.innerHTML = `<div class="who">${m.from === "buyer" ? `köpare<span class="ai">AI agent</span>` : "du (säljare)"}</div>
+        <div class="txt">${esc(m.text)}</div>${m.price_sek ? `<div class="price">${kr(m.price_sek)}</div>` : ""}`;
+      $("#chat").appendChild(el);
+    }
+    if (msgs.length) $("#chat").scrollTop = $("#chat").scrollHeight;
+  }
+
+  async function refresh() {
+    try { data = await api("/api/inbox"); } catch { return; }
+    if (!sel && data.threads.length) sel = data.threads.find((t) => t.mode === "human")?.id || null;
+    renderList(); renderHead(); loadChat(false);
+  }
+
+  document.addEventListener("click", (e) => {
+    const it = e.target.closest(".item[data-id]");
+    if (it) { sel = it.dataset.id; history.replaceState(null, "", `?id=${sel}`); renderList(); renderHead(); loadChat(true); }
+    const c = e.target.closest("[data-claim]");
+    if (c) setMode(c.dataset.claim, c.dataset.mode);
+  });
+  $("#form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const text = $("#txt").value.trim(); if (!text || !sel) return;
+    const p = parseFloat($("#pr").value);
+    $("#txt").value = ""; $("#pr").value = "";
+    await api(`/api/inbox/${sel}/messages`, "POST", { text, price_sek: isNaN(p) ? null : p });
+    loadChat(false); refresh();
+  });
+  refresh(); loadChat(true);
+  setInterval(refresh, 1000);
+})();
+</script>
+</body>
+</html>

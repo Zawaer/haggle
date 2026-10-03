@@ -20,7 +20,7 @@ import re
 import time
 import uuid
 
-from . import config, marketplace, negotiation, pipeline
+from . import config, inbox, marketplace, mockbay, negotiation, pipeline
 from .llm import Budget
 
 HUNTS = {}
@@ -51,6 +51,7 @@ class Hunt:
         self.answer_future = None
         self.watching = False
         self.market_ref = None
+        self.source = "http" if config.MARKET_URL else config.MARKET
         self.approved = asyncio.Event()
         self.started = time.time()
         self.market = None
@@ -101,12 +102,9 @@ class Hunt:
         await self.emit("requirements", req=self.req)
 
         await self.phase_to("search")
-        if self.market:
-            found = await self.market.search(self.req["search_queries"])
-        else:
-            found = marketplace.search(self.req["search_queries"])
-        await self.emit("status", text=f"Searched Blocket, Tradera and Facebook Marketplace with "
-                                       f"{len(self.req['search_queries'])} queries: {len(found)} listings")
+        found = await self._search()
+        where = "mockbay" if self.source == "mockbay" else "Blocket, Tradera and Facebook Marketplace"
+        await self.emit("status", text=f"Searched {where} with {len(self.req['search_queries'])} queries: {len(found)} listings")
         for l in found:
             self.items[l["id"]] = {"id": l["id"], "listing": l, "state": "found", "thread": []}
             await self.emit("found", id=l["id"], listing=l)
@@ -165,6 +163,12 @@ class Hunt:
     async def _search(self):
         if self.market:
             return await self.market.search(self.req["search_queries"])
+        if self.source == "mockbay":
+            try:
+                return await mockbay.search(self.req["search_queries"])
+            except Exception as e:  # mockbay down / venue Wi-Fi: keep the demo alive on the built-in mock
+                self.source = "local"
+                await self.emit("status", text=f"mockbay unreachable ({str(e)[:60]}), using the built-in marketplace")
         return marketplace.search(self.req["search_queries"])
 
     async def watch(self):
@@ -255,9 +259,12 @@ class Hunt:
         it = self.items[lid]
         l = it["listing"]
         try:
-            full = {**marketplace.get(lid), "_lang": l.get("_lang")}
+            base = mockbay.full(lid) if lid in mockbay._CACHE else marketplace.get(lid)
+            full = {**base, "_lang": l.get("_lang")}
         except StopIteration:  # listing only exists on the external marketplace
             full = None
+        if not self.market:
+            inbox.open_thread(lid, l, self.id)
         bmax = self.req["budget_max_sek"]
         await self.set_state(lid, "negotiating")
         buyer_msgs = 0
@@ -301,7 +308,9 @@ class Hunt:
             await self._send(lid, "buyer", out["message"], price, out["private_thoughts"], out["action"], checks=checks)
             if self.market:
                 await self.market.send(lid, "buyer", out["message"], price)
-            elif full is None:
+            else:
+                after = (await inbox.post(lid, "buyer", out["message"], price))["seq"]
+            if not self.market and full is None:
                 await self.set_state(lid, "error", reason="listing not in local mock")
                 return
             buyer_msgs += 1
@@ -315,8 +324,10 @@ class Hunt:
                 return await self._deal(lid, it["seller_price"], out.get("pickup_or_shipping", ""))
 
             # ---- seller replies
-            if self.market:  # external marketplace: a human in the seller inbox, or seller_bot.py
-                got = await self.market.wait_seller(lid)
+            human = not self.market and inbox.mode(lid) == "human"
+            if self.market or human:  # a human seller (haggle's /inbox or an external marketplace) or seller_bot.py
+                got = (await self.market.wait_seller(lid)) if self.market else \
+                    (await inbox.wait_seller(lid, after, config.HUMAN_REPLY_TIMEOUT))
                 if got is None:
                     await self.set_state(lid, "no_reply", reason="seller didn't reply in time")
                     return
@@ -331,12 +342,13 @@ class Hunt:
                 floor = full["hidden"].get("min_price_sek") or l["price_sek"]
                 if s["action"] in ("accept", "counter") and s["price_sek"] and s["price_sek"] < floor:
                     s["price_sek"], s["action"] = floor, "counter"  # sellers can't go below their hidden minimum
+                await inbox.post(lid, "seller", s["message"], s.get("price_sek") or None, s["private_thoughts"])
             if s["action"] == "accept":
                 s["price_sek"] = price or s["price_sek"]
             if s.get("price_sek"):
                 it["seller_price"] = s["price_sek"]
             await self._send(lid, "seller", s["message"], s.get("price_sek") or None, s["private_thoughts"], s["action"])
-            manip = (r.get("manipulation") if self.market else "") or ""
+            manip = (r.get("manipulation") if (self.market or human) else "") or ""
             hit = MANIPULATION.search(s["message"] or "")
             note = ""
             if manip.strip() or hit:
@@ -408,5 +420,7 @@ class Hunt:
                              action="release")
             if self.market:
                 await self.market.send(o["id"], "buyer", o["thread"][-1]["text"])
+            else:
+                await inbox.post(o["id"], "buyer", o["thread"][-1]["text"])
             await self.set_state(o["id"], "released")
         await self.phase_to("done")

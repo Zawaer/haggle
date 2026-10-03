@@ -44,7 +44,8 @@ INTAKE_SCHEMA = {
         "clarifying_question": {
             "type": "string",
             "description": "Ask ONE question only if something essential is truly ambiguous (e.g. 'good for gaming' "
-                           "with no GPU and no budget). Otherwise empty string.",
+                           "with no GPU and no budget). Write it in the SAME language as the user's request "
+                           "(English request -> English question). Otherwise empty string.",
         },
     },
     "required": ["summary", "category", "budget_max_sek", "target_price_sek", "gpu_min", "gpu_allow_equivalent",
@@ -59,7 +60,9 @@ async def intake(request, budget, answer=None):
         prompt += f"\nAnswer to your clarifying question: {answer}\nDo not ask another question."
     return await ask_json(
         prompt, INTAKE_SCHEMA, budget=budget,
-        system="You turn a shopper's request for a second-hand purchase in Sweden into structured requirements.",
+        system="You turn a shopper's request for a second-hand purchase in Sweden into structured requirements. "
+               "Anything you say to the user (summary, clarifying question) must be in the language the user wrote in; "
+               "only the search queries mix Swedish and English.",
     )
 
 

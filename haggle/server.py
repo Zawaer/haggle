@@ -107,6 +107,59 @@ async def confirm(hid: str, body: One):
     return {"ok": True}
 
 
+# ---- seller inbox (haggle's message hub): a person can play any seller live at /inbox
+
+class SellerMsg(BaseModel):
+    text: str
+    price_sek: float | None = None
+
+
+class ModeBody(BaseModel):
+    mode: str
+
+
+@app.get("/api/inbox")
+async def inbox_list():
+    from . import inbox
+    threads = [{"id": lid, "title": t["listing"].get("title", lid), "price_sek": t["listing"].get("price_sek"),
+                "location": t["listing"].get("location"), "seller": (t["listing"].get("seller") or {}).get("name"),
+                "mode": inbox.mode(lid), "n": len(t["messages"]), "last": t["messages"][-1] if t["messages"] else None}
+               for lid, t in inbox.THREADS.items()]
+    threads.sort(key=lambda x: -(x["last"] or {}).get("seq", 0))
+    claimable = []
+    if HUNTS:
+        h = list(HUNTS.values())[-1]
+        for it in h.items.values():
+            if it["state"] in ("shortlisted", "approved", "negotiating") and it["id"] not in inbox.THREADS:
+                l = it["listing"]
+                claimable.append({"id": it["id"], "title": l["title"], "price_sek": l["price_sek"],
+                                  "seller": (l.get("seller") or {}).get("name"), "mode": inbox.mode(it["id"])})
+    return {"threads": threads, "claimable": claimable}
+
+
+@app.get("/api/inbox/{lid}/messages")
+async def inbox_messages(lid: str, after: int = 0):
+    from . import inbox
+    t = inbox.THREADS.get(lid)
+    msgs = [m for m in (t or {}).get("messages", []) if m["seq"] > after]
+    return [{k: v for k, v in m.items() if k != "thoughts"} for m in msgs]  # a seller never sees the agent's thoughts
+
+
+@app.post("/api/inbox/{lid}/messages")
+async def inbox_reply(lid: str, body: SellerMsg):
+    from . import inbox
+    if inbox.mode(lid) != "human":
+        inbox.set_mode(lid, "human")  # typing a reply takes over this seller from the bot
+    return await inbox.post(lid, "seller", body.text.strip()[:2000], body.price_sek)
+
+
+@app.put("/api/inbox/{lid}/mode")
+async def inbox_mode(lid: str, body: ModeBody):
+    from . import inbox
+    inbox.set_mode(lid, body.mode)
+    return {"id": lid, "mode": inbox.mode(lid)}
+
+
 class NewListing(BaseModel):
     title: str
     description: str
@@ -207,6 +260,11 @@ async def events(hid: str, start: int = 0):
 
 
 app.mount("/static", StaticFiles(directory=ROOT / "web"), name="static")
+
+
+@app.get("/inbox")
+async def inbox_page():
+    return FileResponse(ROOT / "web" / "inbox.html")
 
 
 @app.get("/")

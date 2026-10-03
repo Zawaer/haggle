@@ -35,3 +35,7 @@ HUMAN_REPLY_TIMEOUT = int(os.environ.get("HAGGLE_HUMAN_TIMEOUT", "180"))  # seco
 # Watch mode: after the first deals, keep checking the marketplace for new matching listings.
 WATCH_INTERVAL = int(os.environ.get("HAGGLE_WATCH_INTERVAL", "15"))      # seconds between searches
 WATCH_MINUTES = int(os.environ.get("HAGGLE_WATCH_MINUTES", "180"))       # stop watching after this long
+
+# Listing source: "mockbay" (our team's mock marketplace site, falls back to local on error) or "local"
+# (the built-in 42-listing dataset with hidden ground truth, used by the evals and replay).
+MARKET = os.environ.get("HAGGLE_MARKET", "mockbay").lower()
