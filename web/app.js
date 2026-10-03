@@ -115,25 +115,78 @@
     return r.json();
   }
 
-  // browser mode: poll the agent's live browser view (only shown when the server drives mockbay in a browser)
-  let abTimer = null, abLast = 0;
+  // browser mode: while the agent researches, its live browser is the main element (counters + a feed of what
+  // it's doing overlaid); once the shortlist is ready it fades out for good and the best fits take over.
+  let abTimer = null, abKey = "", abOn = false, abDone = false, abPages = new Set();
+  const RESEARCH = new Set(["intake", "search", "extract", "vet", "rank", "draft"]);
+  const abStage = () => $("#agent-browser");
+  function abFeed(text) {
+    if (!abOn || !text) return;
+    const feed = $("#ab-feed");
+    const last = feed.lastElementChild;
+    if (last && last.textContent === text) return;
+    feed.querySelectorAll("li").forEach((li) => li.classList.add("old"));
+    const li = document.createElement("li");
+    li.textContent = text;
+    feed.appendChild(li);
+    while (feed.children.length > 4) feed.firstElementChild.remove();
+  }
+  function abCount(id, n) {
+    const el = $(id);
+    if (!el || el.textContent === String(n)) return;
+    el.textContent = n;
+    el.classList.remove("bump"); void el.offsetWidth; el.classList.add("bump");
+  }
+  function abStats(read, out, scams) {
+    if (!abOn) return;
+    abCount("#ab-n-read", Math.max(read, abPages.size));  // browser mode: count listing pages as it opens them abCount("#ab-n-out", out); abCount("#ab-n-scam", scams);
+  }
+  function abShow() {
+    if (abOn || abDone) return;
+    abOn = true;
+    abStage().classList.remove("hidden", "leaving");
+    document.body.classList.add("browsing");
+    meter();
+  }
+  function abHide(instant) {
+    clearInterval(abTimer);
+    abDone = true;
+    if (!abOn) { abStage().classList.add("hidden"); return; }
+    abOn = false;
+    document.body.classList.remove("browsing");
+    if (instant) { abStage().classList.add("hidden"); return; }
+    abStage().classList.add("leaving");
+    setTimeout(() => abStage().classList.add("hidden"), 520);
+  }
   function watchBrowser(id) {
     clearInterval(abTimer);
-    $("#agent-browser").classList.add("hidden");
-    abLast = 0;
+    abOn = false; abDone = false; abKey = ""; abPages = new Set();
+    document.body.classList.remove("browsing");
+    abStage().classList.add("hidden");
+    $("#ab-feed").innerHTML = "";
     abTimer = setInterval(async () => {
       if (S.id !== id) return clearInterval(abTimer);
+      if (S.phase && !RESEARCH.has(S.phase)) return abHide(false);  // research is over: never show it again
       try {
         const r = await fetch(`/api/hunts/${id}/browser`);
         if (!r.ok) return;
         const b = await r.json();
-        if (!b.active || b.t === abLast) return;
-        abLast = b.t;
+        const key = `${b.t}|${b.label}`;
+        if (!b.active || key === abKey) return;
+        abKey = key;
+        const img = $("#ab-img");
+        const next = new Image();
+        next.onload = () => { img.src = next.src; img.classList.remove("swap"); };
+        img.classList.add("swap");
+        next.src = `/api/hunts/${id}/browser.jpg?t=${encodeURIComponent(key)}`;
         $("#ab-label").textContent = b.label;
-        $("#ab-img").src = `/api/hunts/${id}/browser.jpg?t=${b.t}`;
-        $("#agent-browser").classList.remove("hidden");
+        if (/^reading /.test(b.label)) abPages.add(b.label);
+        abShow();
+        meter();
+        abFeed(b.label === "login" ? "Signing in to mockbay"
+          : b.label.replace(/^search: (.*)$/, "Searching “$1”").replace(/^reading /, "Reading "));
       } catch { /* ignore */ }
-    }, 1500);
+    }, 900);
   }
 
   function connect(id) {
@@ -302,10 +355,12 @@
     if (talking) text = `Talking to ${talking} seller${talking === 1 ? "" : "s"}` + (deals ? ` · ${deals} deal${deals === 1 ? "" : "s"} so far` : "");
     else if (all.length) text = `${all.length} listings read` + (rej ? ` · ${rej} ruled out` : "") + (scams ? ` · ${scams} scam${scams === 1 ? "" : "s"} caught` : "");
     if (E.calls.textContent !== text) E.calls.textContent = text;
+    abStats(all.length, rej, scams);
   }
 
   function setPhase(phase, calls) {
     S.phase = phase;
+    if (!RESEARCH.has(phase)) abHide(false);  // shortlist ready (or later): the browser view goes away for good
     setCalls(calls);
     const step = PHASE_STEP[phase] ?? 0;
     E.barFill.style.width = `${Math.min(100, ((step + (phase.startsWith("awaiting") || phase === "done" ? 1 : 0.5)) / 6) * 100)}%`;
@@ -339,6 +394,7 @@
   function setStatus(text) {
     show(E.status, true);
     E.statusText.textContent = String(text).replace(/…$/, "");
+    abFeed(String(text).replace(/…$/, ""));
   }
 
   setInterval(() => {

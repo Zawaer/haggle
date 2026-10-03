@@ -80,10 +80,24 @@
       <div id="status" class="status mono"><span class="sq" aria-hidden="true"></span><span id="status-text">Starting…</span></div>
       <p class="meter mono"><span id="calls">Starting…</span><span id="clock" class="clock hidden">0:00</span></p>
     </div>
-    <figure id="agent-browser" class="agent-browser hidden">
-      <figcaption class="mono"><span class="ab-dot" aria-hidden="true"></span>Agent's browser · <span id="ab-label"></span></figcaption>
-      <img id="ab-img" alt="Live view of the agent's browser on mockbay">
-    </figure>
+    <!-- browser mode: the agent's live browser is the main element while it researches, then fades away -->
+    <section id="agent-browser" class="ab-stage hidden" aria-live="polite">
+      <div class="ab-frame">
+        <div class="ab-bar mono"><span class="ab-dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="ab-url">mockbay · <span id="ab-label">opening the marketplace</span></span><span class="ab-live"><span class="ab-dot" aria-hidden="true"></span>LIVE · agent's browser</span></div>
+        <div class="ab-view">
+          <img id="ab-img" alt="Live view of the agent's browser on mockbay">
+          <div class="ab-scan" aria-hidden="true"></div>
+          <div class="ab-overlay">
+            <div class="ab-stats">
+              <div class="ab-stat"><b id="ab-n-read">0</b><span>listings read</span></div>
+              <div class="ab-stat"><b id="ab-n-out">0</b><span>ruled out</span></div>
+              <div class="ab-stat ab-stat-scam"><b id="ab-n-scam">0</b><span>scams caught</span></div>
+            </div>
+            <ol id="ab-feed" class="ab-feed"></ol>
+          </div>
+        </div>
+      </div>
+    </section>
 
     <section id="question" class="sec question hidden">
       <h2>One quick question</h2>
