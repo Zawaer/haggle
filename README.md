@@ -88,7 +88,7 @@ between two agents.
 ## Run it
 
 ```bash
-uv venv .venv && uv pip install --python .venv/bin/python google-genai pydantic fastapi "uvicorn[standard]"
+uv venv .venv && uv pip install --python .venv/bin/python -r requirements.txt   # or: scripts/run.sh
 echo "GEMINI_API_KEY=your-key" > .env          # never commit this; a pre-commit hook blocks keys
 .venv/bin/uvicorn haggle.server:app --host 0.0.0.0 --port 3123
 ```

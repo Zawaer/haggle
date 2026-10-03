@@ -1,0 +1,5 @@
+google-genai>=2.25.0
+pydantic>=2
+fastapi
+uvicorn[standard]
+httpx
