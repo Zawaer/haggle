@@ -19,7 +19,8 @@ def _transcribe(data: bytes, mime: str) -> str:
     r = client().interactions.create(
         model=MODEL,
         input=[{"type": "audio", "data": base64.b64encode(data).decode(), "mime_type": mime}],
-        generation_config={"transcription_config": {"language_codes": [], "custom_vocabulary": VOCAB}},
+        generation_config={"transcription_config": {"language_codes": [], "custom_vocabulary": VOCAB,
+                                                   "mode": "smart"}},  # strips stutters, fillers, false starts
     )
     return (r.output_text or "").strip()
 

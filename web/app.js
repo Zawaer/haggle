@@ -674,13 +674,15 @@
     const saved = focus?.deal?.saved_sek || 0;
     const pct = focus?.deal?.asking_sek ? Math.round((saved / focus.deal.asking_sek) * 100) : 0;
     const scams = all.filter((x) => x.state === "scam").length;
-    const facts = [`${all.length} listings read`, `${scams} scam${scams === 1 ? "" : "s"} avoided`, `${nego} seller${nego === 1 ? "" : "s"}, in parallel`, `${S.calls} Gemini calls`, `${Math.round(S.t)} s`]
+    const facts = [`${all.length} listings read`, scams ? `${scams} scam${scams === 1 ? "" : "s"} avoided` : null, `${nego} seller${nego === 1 ? "" : "s"}, in parallel`, `${S.calls} Gemini calls`, `${Math.round(S.t)} s`].filter(Boolean)
       .map((f) => `<span>${f}</span>`).join(" · ");
 
     if (!ids.length) {
       E.savings.innerHTML = `<p class="save-big"><span class="amt none">No deal yet.</span></p><p class="save-note">None of the sellers agreed within your limits, so your agent didn't overpay.</p><p class="save-facts mono">${facts}</p>`;
     } else {
-      E.savings.innerHTML = `<p class="save-big"><span class="lbl">${confirmed ? "You saved" : "Saves you"}</span> <span class="amt">${kr(saved)}</span> <span class="pct mono">${pct}% under asking</span></p>
+      const mref = S.handoff.market_ref, fprice = focus?.deal?.price_sek;
+      const under = mref && fprice && mref - fprice > 0 ? ` · ${kr(mref - fprice)} under the typical asking price (${kr(mref)})` : "";
+      E.savings.innerHTML = `<p class="save-big"><span class="lbl">${confirmed ? "You saved" : "Saves you"}</span> <span class="amt">${kr(saved)}</span> <span class="pct mono">${pct}% under asking${under}</span></p>
         <p class="save-facts mono">${facts}</p>
         ${confirmed ? `<p class="save-note">Confirmed: <b>${esc(confirmed.listing.title)}</b> for <span class="money mono">${kr(confirmed.deal?.price_sek)}</span>. ${confirmed.deal?.logistics ? `Handover: ${esc(confirmed.deal.logistics)}. ` : ""}${released ? `Your agent politely released the other ${released} seller${released > 1 ? "s" : ""}.` : ""}</p>` : `<p class="save-note">Nothing is bought until you confirm one. The others are released politely.</p>`}`;
     }

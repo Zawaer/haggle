@@ -400,10 +400,13 @@ class Hunt:
 
     # ------------------------------------------------------------ step 8
     async def _handoff(self):
-        deals = sorted((it for it in self.items.values() if it["state"] == "deal_offered"),
-                       key=lambda it: (it["deal"]["price_sek"] - (it.get("score") or 0) * 20))
+        def value(it):  # spec margin, risk and convenience at the AGREED price, plus how much was haggled off
+            l = {**it["listing"], "price_sek": it["deal"]["price_sek"]}
+            base = pipeline.rank_score(l, it["specs"], it["verdicts"], it.get("risk") or 0, self.req)
+            return base + 40 * it["deal"]["saved_sek"] / max(1, it["deal"]["asking_sek"])
+        deals = sorted((it for it in self.items.values() if it["state"] == "deal_offered"), key=lambda it: -value(it))
         await self.emit("handoff", ids=[it["id"] for it in deals],
-                        best=deals[0]["id"] if deals else None)
+                        best=deals[0]["id"] if deals else None, market_ref=self.market_ref)
         await self.phase_to("awaiting_confirmation" if deals else "done")
         if not self.watching and not any(i["state"] == "confirmed" for i in self.items.values()):
             asyncio.ensure_future(self.watch())
@@ -412,7 +415,9 @@ class Hunt:
         it = self.items[lid]
         if it["state"] != "deal_offered":
             raise ValueError("that listing has no deal to confirm")
-        self.watching = False
+        if self.watching:
+            self.watching = False
+            await self.emit("watch", active=False, text="Stopped watching: deal confirmed")
         await self.set_state(lid, "confirmed")
         others = [o for o in self.items.values() if o["state"] in ("deal_offered", "negotiating") and o["id"] != lid]
         for o in others:
