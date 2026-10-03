@@ -9,7 +9,7 @@ must get the user's OK before approving or confirming.
 """
 import asyncio
 
-from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver import MCPServer, Context
 from mcp.server.transport_security import TransportSecuritySettings
 
 from .orchestrator import HUNTS, Hunt
@@ -21,13 +21,27 @@ mcp = MCPServer(
                  "confirm_deal after the user explicitly agrees.",
 )
 _tasks = set()
-GATES = ("awaiting_approval", "awaiting_confirmation", "done")
+GATES = ("awaiting_approval", "awaiting_confirmation", "done", "error", "paused")
 
 
 def _bg(coro):
     t = asyncio.create_task(coro)
     _tasks.add(t)
     t.add_done_callback(_tasks.discard)
+
+
+def _owner(ctx):
+    if ctx is None:
+        return "local"  # in-process callers; HTTP tools always receive injected context
+    request = ctx.request_context.request
+    if request is None or not getattr(request.state, "owner", None):
+        raise ValueError("authentication required")
+    return request.state.owner
+
+
+def _owned(hid, ctx):
+    h = HUNTS.get(hid)
+    return h if h and h.owner == _owner(ctx) else None
 
 
 def _summary(h):
@@ -40,8 +54,8 @@ def _summary(h):
     q = next((e for e in reversed(h.events) if e["type"] == "question"), None)
     if q and h.answer_future and not h.answer_future.done():
         out["question_for_user"] = q["text"]
-    short = [i for i in items if i["state"] in ("shortlisted",) or i.get("draft")]
-    if h.phase == "awaiting_approval":
+    short = [i for i in items if i["state"] == "shortlisted" and i.get("draft")]
+    if short and not h.closed:
         out["shortlist"] = [{"listing_id": i["id"], "title": i["listing"]["title"], "asking_sek": i["listing"]["price_sek"],
                              "location": i["listing"]["location"], "score": i.get("score"),
                              "draft_message": (i.get("draft") or {}).get("message"),
@@ -52,7 +66,7 @@ def _summary(h):
         out["deals"] = [{"listing_id": i["id"], "title": i["listing"]["title"], **i["deal"], "state": i["state"]}
                         for i in sorted(deals, key=lambda i: i["deal"]["price_sek"])]
     if h.phase == "awaiting_confirmation":
-        out["next"] = "Present the deals; call confirm_deal with the one the user picks. The agent never pays."
+        out["next"] = "Present the deals; confirm the user's choice, or approve new shortlisted listings after consent."
     scams = [i["listing"]["title"] for i in items if i["state"] == "scam"]
     if scams:
         out["scams_flagged"] = scams
@@ -68,10 +82,10 @@ async def _wait(h, seconds):
 
 
 @mcp.tool()
-async def start_hunt(request: str, wait_seconds: int = 90) -> dict:
+async def start_hunt(request: str, wait_seconds: int = 90, ctx: Context = None) -> dict:
     """Start a hunt for a second-hand item described in plain language (budget, specs, location).
     Waits up to wait_seconds for the shortlist (or a clarifying question) and returns the status."""
-    h = Hunt(request.strip())
+    h = Hunt(request.strip(), owner=_owner(ctx))
     _bg(h.run())
     await asyncio.sleep(0.2)
     await _wait(h, min(wait_seconds, 120))
@@ -79,9 +93,9 @@ async def start_hunt(request: str, wait_seconds: int = 90) -> dict:
 
 
 @mcp.tool()
-async def hunt_status(hunt_id: str, wait_seconds: int = 0) -> dict:
+async def hunt_status(hunt_id: str, wait_seconds: int = 0, ctx: Context = None) -> dict:
     """Current status of a hunt: phase, shortlist + drafted messages, deals. Optionally wait for the next decision point."""
-    h = HUNTS.get(hunt_id)
+    h = _owned(hunt_id, ctx)
     if not h:
         return {"error": "no such hunt"}
     if wait_seconds:
@@ -90,9 +104,9 @@ async def hunt_status(hunt_id: str, wait_seconds: int = 0) -> dict:
 
 
 @mcp.tool()
-async def answer_question(hunt_id: str, answer: str, wait_seconds: int = 90) -> dict:
+async def answer_question(hunt_id: str, answer: str, wait_seconds: int = 90, ctx: Context = None) -> dict:
     """Answer the hunt's clarifying question (relay the user's answer)."""
-    h = HUNTS.get(hunt_id)
+    h = _owned(hunt_id, ctx)
     if not h or not h.answer_future or h.answer_future.done():
         return {"error": "no open question"}
     h.answer_future.set_result(answer)
@@ -102,14 +116,16 @@ async def answer_question(hunt_id: str, answer: str, wait_seconds: int = 90) -> 
 
 
 @mcp.tool()
-async def approve_outreach(hunt_id: str, listing_ids: list[str], wait_seconds: int = 110) -> dict:
+async def approve_outreach(hunt_id: str, listing_ids: list[str], wait_seconds: int = 110, ctx: Context = None) -> dict:
     """Send the drafted opening messages to the approved sellers and start negotiating with them in parallel.
     Only call this after the user approved these listings. Waits for the deals."""
-    h = HUNTS.get(hunt_id)
+    h = _owned(hunt_id, ctx)
     if not h:
         return {"error": "no such hunt"}
-    if h.phase != "awaiting_approval":
-        return {"error": f"can't approve in phase {h.phase}"}
+    try:
+        h.validate_approval(listing_ids)
+    except ValueError as e:
+        return {"error": str(e)}
     _bg(h.approve(listing_ids))
     await asyncio.sleep(0.5)
     await _wait(h, min(wait_seconds, 120))
@@ -117,13 +133,26 @@ async def approve_outreach(hunt_id: str, listing_ids: list[str], wait_seconds: i
 
 
 @mcp.tool()
-async def confirm_deal(hunt_id: str, listing_id: str) -> dict:
+async def confirm_deal(hunt_id: str, listing_id: str, ctx: Context = None) -> dict:
     """Confirm the deal the user picked. Other sellers are released politely. Payment and pickup stay with the user."""
-    h = HUNTS.get(hunt_id)
+    h = _owned(hunt_id, ctx)
     if not h:
         return {"error": "no such hunt"}
     try:
         await h.confirm(listing_id)
+    except ValueError as e:
+        return {"error": str(e)}
+    return _summary(h)
+
+
+@mcp.tool()
+async def resume_hunt(hunt_id: str, ctx: Context = None) -> dict:
+    """Recover a paused hunt without resending uncertain messages. Fresh drafts require approval."""
+    h = _owned(hunt_id, ctx)
+    if not h:
+        return {"error": "no such hunt"}
+    try:
+        await h.recover()
     except ValueError as e:
         return {"error": str(e)}
     return _summary(h)

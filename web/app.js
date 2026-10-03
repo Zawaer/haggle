@@ -31,6 +31,8 @@
     negotiate: "Negotiating with sellers in parallel",
     awaiting_confirmation: "Deals reserved. Pick the one you want.",
     done: "Done.",
+    paused: "Restored after restart. Resume to review fresh drafts.",
+    error: "This hunt needs attention. Review the error and resume when ready.",
   };
   const VLABEL = { type: "Type", gpu: "GPU", ram: "RAM", storage: "SSD", price: "Price", location: "Location", works: "Works" };
   const VORDER = ["type", "gpu", "ram", "storage", "price", "location", "works"];
@@ -75,6 +77,7 @@
   // ------------------------------------------------------------------ api
   async function api(path, body) {
     const r = await fetch(path, { method: body ? "POST" : "GET", headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
+    if (r.status === 401) { location.href = "/login"; throw new Error("Sign in required"); }
     if (!r.ok) throw new Error((await r.text().catch(() => "")) || r.statusText);
     return r.json();
   }
@@ -96,6 +99,10 @@
       // Is the hunt still there? (A server restart wipes hunts; don't retry a dead one forever.)
       try {
         const r = await fetch(`/api/hunts/${id}`);
+        if (r.ok) {
+          const snap = await r.json();
+          if (snap.closed && es) { es.close(); es = null; return; }
+        }
         if (r.status === 404) {
           es.close(); es = null;
           history.replaceState(null, "", location.pathname + (E.replay.checked ? "?replay=1" : ""));
@@ -167,6 +174,7 @@
       case "notice": onNotice(ev.text); break;
       case "watch_hit": onWatchHit(ev); break;
       case "error": showError(ev.message); break;
+      case "complete": if (es) { es.close(); es = null; } break;
     }
   }
 
@@ -200,6 +208,19 @@
     if (phase === "negotiate") closeApproval();
     if (phase === "awaiting_confirmation" || phase === "done") renderHandoff();
     if (phase !== "intake") show(E.question, false);
+    let resume = document.getElementById("resume-hunt");
+    if (!resume) {
+      resume = document.createElement("button"); resume.id = "resume-hunt";
+      resume.className = "btn btn-line"; resume.textContent = "Resume hunt";
+      E.status.appendChild(resume);
+      resume.onclick = async () => {
+        resume.disabled = true;
+        try { await api(`/api/hunts/${S.id}/resume`, {}); }
+        catch (e) { showError(e.message); }
+        finally { resume.disabled = false; }
+      };
+    }
+    show(resume, phase === "paused" || phase === "error");
   }
 
   function setStatus(text) {
@@ -228,10 +249,10 @@
     S.req = req;
     const parts = [];
     if (req.budget_max_sek) parts.push(`Budget <b class="mono">≤ ${kr(req.budget_max_sek)}</b>${req.target_price_sek ? ` <span class="muted">(aiming for ~${num(req.target_price_sek)})</span>` : ""}`);
-    if (req.gpu_min) parts.push(`${esc(req.gpu_min)} or better`);
+    if (req.gpu_min) parts.push(`${esc(req.gpu_min)}${req.gpu_allow_equivalent ? " or better" : " (exact model)"}`);
     if (req.ram_gb_min) parts.push(`${req.ram_gb_min} GB RAM`);
     if (req.storage_gb_min) parts.push(`${fmtGB(req.storage_gb_min)}${req.storage_ssd_required ? " SSD" : " storage"}`);
-    if (req.city || req.shipping_ok) parts.push([req.city, req.shipping_ok ? "shipping" : ""].filter(Boolean).join(" or "));
+    if (req.city || req.shipping_ok) parts.push([esc(req.city), req.shipping_ok ? "shipping" : ""].filter(Boolean).join(" or "));
     if (req.used_ok) parts.push("used is fine");
     E.reqChips.innerHTML = parts.map((p) => `<span class="req">${p}</span>`).join('<span class="sep"> · </span>');
     const qs = req.search_queries || [];
@@ -475,7 +496,7 @@
     setStatus(text);
     show(E.error, true);
     E.error.classList.add("notice");
-    E.error.innerHTML = `<p>${esc(text)}</p><p class="muted small">Try a higher budget or looser specs, or just wait: watch mode is on.</p>`;
+    E.error.innerHTML = `<p>${esc(text)}</p>`;
   }
 
   function onWatch(ev) {
@@ -707,7 +728,7 @@
     const saved = focus?.deal?.saved_sek || 0;
     const pct = focus?.deal?.asking_sek ? Math.round((saved / focus.deal.asking_sek) * 100) : 0;
     const scams = all.filter((x) => x.state === "scam").length;
-    const facts = [`${all.length} listings read`, scams ? `${scams} scam${scams === 1 ? "" : "s"} avoided` : null, `${nego} seller${nego === 1 ? "" : "s"}, in parallel`, `${S.calls} Gemini calls`, S.handoff?.condense ? `condense: −${S.handoff.condense.saved_pct}% negotiation context` : null, `${Math.round(S.t)} s`].filter(Boolean)
+    const facts = [`${all.length} listings read`, scams ? `${scams} scam${scams === 1 ? "" : "s"} avoided` : null, `${nego} seller${nego === 1 ? "" : "s"}, in parallel`, `${S.calls} Gemini calls`, S.handoff?.condense ? `condense: −${S.handoff.condense.saved_pct}% selected-text characters` : null, `${Math.round(S.t)} s`].filter(Boolean)
       .map((f) => `<span>${f}</span>`).join(" · ");
 
     if (!ids.length) {
@@ -882,6 +903,14 @@
   window.addEventListener("resize", autosize);
   requestAnimationFrame(autosize);
   if (document.fonts) document.fonts.ready.then(autosize);
+
+  api("/api/hunts").then((hunts) => {
+    if (!hunts.length || params.get("h")) return;
+    const list = document.createElement("div");
+    list.innerHTML = `<p>Saved hunts</p>${hunts.slice(-10).reverse().map((hunt) =>
+      `<p><a href="?h=${encodeURIComponent(hunt.id)}">${esc(hunt.request)} (${esc(hunt.phase)})</a></p>`).join("")}`;
+    E.form.after(list);
+  }).catch(() => {});
 
   // resume a hunt after a page reload (?h=<id>)
   const resume = params.get("h");

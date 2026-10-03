@@ -9,6 +9,7 @@ from fastapi.testclient import TestClient
 
 from haggle.orchestrator import Hunt
 from haggle.server import app
+from haggle import auth
 
 
 async def main():
@@ -17,7 +18,7 @@ async def main():
     await h.run()
     await h.approve([i["id"] for i in h.items.values() if i["state"] == "shortlisted"])
     print("first round deals:", [i["id"] for i in h.items.values() if i["state"] == "deal_offered"], "watching:", h.watching)
-    with TestClient(app) as c:
+    with TestClient(app, headers={"Authorization": "Bearer " + auth.users()["local"]}) as c:
         r = c.post("/api/market/listings", json={
             "title": "Speldator RTX 3060 Ti / Ryzen 5 5600 / 16GB / 1TB NVMe",
             "description": "Säljer min speldator, funkar perfekt. RTX 3060 Ti, Ryzen 5 5600, 16 GB DDR4, 1 TB NVMe SSD. "

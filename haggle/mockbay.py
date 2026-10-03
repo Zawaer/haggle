@@ -45,7 +45,7 @@ def normalize(x):
         "id": lid, "source": "mockbay", "title": x.get("title") or x.get("productName") or lid,
         "description": x.get("description") or "", "price_sek": int(x.get("price") or 0),
         "location": x.get("location") or "", "shipping": bool(x.get("shipping")), "posted_days_ago": days,
-        "seller": {"name": s.get("name") or "seller", "account_age_days": max(1, int((2026.75 - since) * 365)),
+        "seller": {"name": s.get("name") or "seller", "account_age_days": max(1, (datetime.now(timezone.utc) - datetime(int(since), 1, 1, tzinfo=timezone.utc)).days),
                    "num_reviews": s.get("sales") or 0, "rating": s.get("rating")},
         "url": f"{BASE}/listing/{lid}", "photo": (BASE + photos[0]) if photos and photos[0].startswith("/") else None,
     }
@@ -76,10 +76,22 @@ async def search(queries, limit=40):
                 if got:
                     break
                 words = words[:-1]
-            for x in got if words else []:
-                if x["id"] not in seen:
-                    seen.add(x["id"])
-                    out.append(normalize(x))
+            page, pages = 1, int(r.json().get("pages", 1)) if words else 0
+            while words:
+                for x in got:
+                    if x["id"] not in seen:
+                        seen.add(x["id"])
+                        out.append(normalize(x))
+                        if len(out) >= limit:
+                            return [{k: v for k, v in l.items() if k != "_hidden"} for l in out]
+                if page >= pages:
+                    break
+                page += 1
+                r = await http.get("/api/listings", params={"q": " ".join(words), "page": page})
+                r.raise_for_status()
+                got = r.json().get("listings", [])
+                if not got:
+                    break
     return [{k: v for k, v in l.items() if k != "_hidden"} for l in out[:limit]]
 
 

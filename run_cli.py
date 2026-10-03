@@ -33,11 +33,15 @@ async def main():
             await asyncio.sleep(0.2)
 
     pt = asyncio.create_task(printer())
-    await h.run()
-    while h.phase not in ("awaiting_approval", "done"):
+    run = asyncio.create_task(h.run())
+    while not run.done():
         if h.answer_future and not h.answer_future.done():
             h.answer_future.set_result("Just use your best judgement.")
         await asyncio.sleep(0.3)
+    await run
+    if h.phase != "awaiting_approval":
+        pt.cancel()
+        raise RuntimeError(f"Hunt did not reach approval: {h.phase}")
     ids = [it["id"] for it in h.items.values() if it["state"] == "shortlisted"]
     await h.approve(ids)
     await asyncio.sleep(0.5)
@@ -45,7 +49,7 @@ async def main():
     print("\n==== DEALS ====")
     for it in h.items.values():
         if it["state"] in ("deal_offered", "no_deal", "walked_away", "dropped", "seller_declined"):
-            true_min = __import__("haggle.marketplace", fromlist=["get"]).get(it["id"])["hidden"]["min_price_sek"]
+            true_min = "not exposed"
             print(f"{it['id']} {it['state']}: {it.get('deal')} reason={it.get('reason')} (hidden min {true_min})")
     print(f"LLM calls: {h.budget.calls}, wall time {h.events[-1]['t']}s")
     best = next((e["best"] for e in h.events if e["type"] == "handoff"), None)

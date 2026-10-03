@@ -6,6 +6,7 @@ person replies from /inbox, e.g. a teammate live on stage). Sellers can be claim
 """
 import asyncio
 import time
+from . import storage
 
 THREADS = {}   # listing id -> {"listing": {...}, "messages": [...], "mode": "bot"|"human", "hunt": id}
 MODES = {}     # listing id -> mode (survives thread resets, so a seller can be claimed in advance)
@@ -21,10 +22,18 @@ def set_mode(lid, m):
     MODES[lid] = "human" if m == "human" else "bot"
     if lid in THREADS:
         THREADS[lid]["mode"] = MODES[lid]
+        storage.save("inbox", lid, THREADS[lid])
+
+
+def thread_id(hunt_id, listing_id):
+    return f"{hunt_id}:{listing_id}"
 
 
 def open_thread(lid, listing, hunt_id):
-    THREADS[lid] = {"listing": listing, "messages": [], "mode": mode(lid), "hunt": hunt_id}
+    key = thread_id(hunt_id, lid)
+    THREADS.setdefault(key, {"listing": listing, "messages": [], "mode": mode(key), "hunt": hunt_id})
+    storage.save("inbox", key, THREADS[key])
+    return key
 
 
 async def post(lid, frm, text, price=None, thoughts=None):
@@ -34,6 +43,7 @@ async def post(lid, frm, text, price=None, thoughts=None):
     if thoughts:
         m["thoughts"] = thoughts
     THREADS.setdefault(lid, {"listing": {}, "messages": [], "mode": mode(lid), "hunt": None})["messages"].append(m)
+    storage.save("inbox", lid, THREADS[lid])
     async with _cond:
         _cond.notify_all()
     return m
@@ -60,3 +70,10 @@ async def wait_seller(lid, after_seq, timeout):
 def last_seq(lid):
     msgs = THREADS.get(lid, {}).get("messages", [])
     return msgs[-1]["seq"] if msgs else 0
+
+
+def restore():
+    global _seq
+    THREADS.update(storage.load("inbox"))
+    MODES.update({key: t["mode"] for key, t in THREADS.items()})
+    _seq = max((m["seq"] for t in THREADS.values() for m in t["messages"]), default=0)
