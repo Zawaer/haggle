@@ -478,3 +478,12 @@ body.hide-thoughts .thought { display: none; }
 .linkish:hover { color: var(--ink); }
 .linkish:disabled { opacity: .4; cursor: default; }
 @media (prefers-reduced-motion: reduce) { .whit { animation: none; } }
+
+/* ---- voice input ---- */
+.btn-mic { display: inline-flex; align-items: center; gap: 8px; padding: .8rem 1.1rem; margin-bottom: 8px; font-size: 1rem; }
+.btn-mic.rec, .btn-mic.rec:hover:not(:disabled) { background: var(--accent); border-color: var(--accent); color: var(--paper-2); }
+.btn-mic .mic-lbl { font-family: var(--mono); font-size: .9rem; }
+body.running .btn-mic { display: none; }
+@media (max-width: 700px) { .btn-mic .mic-lbl { display: none; } .btn-mic { padding: .75rem; } }
+.hostlbl { color: var(--mute); }
+.hostlbl b { color: var(--ink); font-weight: 600; }

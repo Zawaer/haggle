@@ -26,6 +26,7 @@
     <label class="ask-lbl" for="request">What are you looking for?</label>
     <div class="ask-row">
       <textarea id="request" rows="1" spellcheck="false">I want a gaming PC under 8,000 SEK, RTX 3060+, 16 GB RAM, 1 TB SSD, Stockholm</textarea>
+      <button id="mic-btn" type="button" class="btn btn-line btn-mic" title="Say it instead: click, speak, click again" aria-label="Speak your request"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span class="mic-lbl">Speak</span></button>
       <button id="hunt-btn" type="submit" class="btn btn-ink btn-hunt">Hunt <span aria-hidden="true">→</span></button>
     </div>
   </form>
@@ -131,7 +132,7 @@
 </main>
 
 <footer class="foot">
-  <span>haggle · hackathon build · Stockholm</span>
+  <span>haggle · hackathon build · Stockholm<span id="hostlbl" class="hostlbl"></span></span>
   <button id="post-test" class="linkish mono hidden" title="Demo: publish a new matching listing on the mock marketplace">post a test listing</button>
   <label class="replay-toggle" title="Replays a recorded real run: no API calls"><input id="replay" type="checkbox"> replay</label>
 </footer>

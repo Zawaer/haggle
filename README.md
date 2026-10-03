@@ -96,7 +96,8 @@ between two agents.
 - **Google Gemini** via the Interactions API (`google-genai` Python SDK):
   - `gemini-3.8-flash`: intake, listing extraction, buyer negotiation agent (structured JSON output,
     low thinking for speed)
-  - `gemini-3.5-flash-lite`: simulated sellers and fallback model on 503s
+  - `gemini-3.5-flash-lite`: simulated sellers, reading human sellers' replies, fallback model on 503s
+  - `gemini-3.5-transcribe`: voice input (custom vocabulary for hardware names and Stockholm places)
 - Python 3.11, FastAPI, Server-Sent Events for the live UI, asyncio for parallel threads
 - Vanilla HTML/CSS/JS frontend (no build step)
 - Partner technologies: Google DeepMind (Gemini), and _TBD: Matrix OS / condense.chat_
@@ -109,7 +110,8 @@ echo "GEMINI_API_KEY=your-key" > .env          # never commit this; a pre-commit
 .venv/bin/uvicorn haggle.server:app --host 0.0.0.0 --port 3123
 ```
 
-Open http://localhost:3123. Add `?replay=1` to replay a recorded run with no API calls (offline demo).
+Open http://localhost:3123. Click **Speak** to say your request instead of typing it (Gemini 3.5 Transcribe,
+Swedish or English). Set `HAGGLE_HOST_LABEL="Matrix OS"` in `.env` to show where it runs in the footer. Add `?replay=1` to replay a recorded run with no API calls (offline demo).
 
 Headless: `.venv/bin/python run_cli.py` runs a whole hunt in the terminal and auto-approves the shortlist.
 Evaluation: `.venv/bin/python -m eval.eval_vetting`.

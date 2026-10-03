@@ -12,7 +12,7 @@ import contextlib
 import json
 import logging
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -133,6 +133,27 @@ async def post_listing(body: NewListing):
                           "language": "sv", "is_scam": False, "scam_signals": [], "expected_verdict": "match",
                           "notes": "posted live during the demo"}})
     return {"id": lid}
+
+
+@app.get("/api/info")
+async def info():
+    """Where this instance runs (shown in the footer), e.g. HAGGLE_HOST_LABEL="Matrix OS" in .env."""
+    import os
+    import socket
+    return {"host_label": os.environ.get("HAGGLE_HOST_LABEL", ""), "hostname": socket.gethostname()}
+
+
+@app.post("/api/transcribe")
+async def transcribe(request: Request):
+    """Voice input: raw audio bytes in the body (Content-Type = the recording's mime type) -> {"text"}."""
+    from .voice import transcribe as tr
+    data = await request.body()
+    if not data or len(data) > 10_000_000:
+        raise HTTPException(400, "send 1 byte to 10 MB of audio")
+    try:
+        return {"text": await tr(data, request.headers.get("content-type", "audio/webm"))}
+    except Exception as e:
+        raise HTTPException(502, f"transcription failed: {str(e)[:200]}")
 
 
 @app.get("/api/hunts/{hid}")
