@@ -11,14 +11,16 @@ import asyncio
 import contextlib
 import json
 import logging
+import os
 from urllib.parse import quote
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, StreamingResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from . import limits, pipeline
+from . import __version__, limits, pipeline
 from .config import ROOT
 from . import auth, inbox
 from .orchestrator import HUNTS, Hunt, restore_hunts
@@ -26,7 +28,11 @@ from .orchestrator import HUNTS, Hunt, restore_hunts
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
 from .mcp_server import http_app as _mcp_http_app, mcp as _mcp
 
-_mcp_app = _mcp_http_app()
+_mcp_app = CORSMiddleware(
+    _mcp_http_app(), allow_origins=["*"], allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "Accept", "Mcp-Protocol-Version", "Mcp-Session-Id", "Last-Event-ID"],
+    expose_headers=["Mcp-Session-Id", "Mcp-Protocol-Version"],
+)
 
 
 @contextlib.asynccontextmanager
@@ -77,10 +83,20 @@ def _hunt(hid, request):
 @app.middleware("http")
 async def access_control(request: Request, call_next):
     path = request.url.path
+    if path == "/mcp":
+        # Both common endpoint spellings work without a redirect (including CORS preflight).
+        request.scope["path"] = "/mcp/"
+        request.scope["raw_path"] = b"/mcp/"
+    is_mcp = path in ("/mcp", "/mcp/")
     # Reject cross-origin writes, including cookie-authenticated MCP calls.
     origin = request.headers.get("origin")
-    if request.method not in ("GET", "HEAD", "OPTIONS") and origin and origin.rstrip("/") != str(request.base_url).rstrip("/"):
+    same_origin = not origin or origin.rstrip("/") == str(request.base_url).rstrip("/")
+    allowed_origins = {o.strip().rstrip("/") for o in os.environ.get("HAGGLE_MCP_ORIGINS", "").split(",") if o.strip()}
+    public_mcp = is_mcp and (not auth.required() or (origin or "").rstrip("/") in allowed_origins)
+    if not same_origin and not public_mcp and (is_mcp or request.method not in ("GET", "HEAD", "OPTIONS")):
         return JSONResponse({"detail": "cross-origin writes are not allowed"}, status_code=403)
+    if is_mcp and request.method == "OPTIONS":
+        return await call_next(request)  # CORS preflight carries no bearer token.
     fwd = request.headers.get("x-forwarded-for", "")
     request.state.client = fwd.split(",")[0].strip() or (request.client.host if request.client else "?")
     if not auth.required():  # open demo: no login, everyone shares owner "local"; abuse limits are per IP
@@ -345,8 +361,7 @@ async def health():
 @app.get("/api/info")
 async def info():
     """Where this instance runs (shown in the footer), e.g. HAGGLE_HOST_LABEL="Matrix OS" in .env."""
-    import os
-    return {"host_label": os.environ.get("HAGGLE_HOST_LABEL", "")}  # no hostname: it can contain a username
+    return {"host_label": os.environ.get("HAGGLE_HOST_LABEL", ""), "version": __version__}
 
 
 @app.post("/api/transcribe")
