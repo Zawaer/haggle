@@ -66,7 +66,7 @@
   // ------------------------------------------------------------------ elements
   const E = {
     form: $("#hunt-form"), request: $("#request"), huntBtn: $("#hunt-btn"), echo: $("#request-echo"), replay: $("#replay"),
-    status: $("#status"), statusText: $("#status-text"), calls: $("#calls"), callsN: $("#calls-n"), clock: $("#clock"), barFill: $("#bar-fill"), work: $("#work"),
+    status: $("#status"), statusText: $("#status-text"), calls: $("#calls"), clock: $("#clock"), barFill: $("#bar-fill"), work: $("#work"),
     question: $("#question"), qText: $("#question-text"), answerForm: $("#answer-form"), answer: $("#answer"),
     reqs: $("#reqs"), reqChips: $("#req-chips"),
     boardSec: $("#board-sec"), board: $("#board"), rejected: $("#rejected"), rejList: $("#rej-list"), rejN: $("#rej-n"),
@@ -266,8 +266,20 @@
   // ------------------------------------------------------------------ header: phase, status, calls, clock
   function setCalls(n) {
     if (typeof n !== "number" || n <= S.calls) return; // monotonic (replay confirm reports 0)
-    S.calls = n;
-    E.callsN.textContent = n;
+    S.calls = n;  // kept for the record; the user sees what the agent did, not API calls (see meter())
+  }
+
+  // header meter: progress in the user's terms ("40 listings read · 22 ruled out" / "Talking to 5 sellers")
+  function meter() {
+    const all = Object.values(S.items).filter((it) => it.listing);
+    const talking = all.filter((it) => LIVE_STATES.has(it.state) || S.panes[it.id]).length;
+    const deals = all.filter((it) => it.state === "deal_offered" || it.state === "confirmed").length;
+    const scams = all.filter((it) => it.state === "scam").length;
+    const rej = all.filter((it) => REJECTED.has(it.state)).length;
+    let text = "Starting…";
+    if (talking) text = `Talking to ${talking} seller${talking === 1 ? "" : "s"}` + (deals ? ` · ${deals} deal${deals === 1 ? "" : "s"} so far` : "");
+    else if (all.length) text = `${all.length} listings read` + (rej ? ` · ${rej} ruled out` : "") + (scams ? ` · ${scams} scam${scams === 1 ? "" : "s"} caught` : "");
+    if (E.calls.textContent !== text) E.calls.textContent = text;
   }
 
   function setPhase(phase, calls) {
@@ -503,6 +515,7 @@
     set(E.cShort, S.shortlist.length);
     const scams = all.filter((it) => it.state === "scam").length;
     E.allSum.textContent = `See all ${all.length} listings we checked` + (scams ? ` · ${scams} scam${scams === 1 ? "" : "s"} avoided` : "");
+    meter();
   }
 
   // ------------------------------------------------------------------ best fits (picks) + approval
@@ -866,7 +879,7 @@
     const confirmed = Object.values(S.items).find((it) => it.state === "confirmed");
     const all = Object.values(S.items).filter((it) => it.listing);
     const scams = all.filter((x) => x.state === "scam").length;
-    const facts = [`${all.length} listings checked`, scams ? `${scams} scam${scams === 1 ? "" : "s"} avoided` : null, `${S.calls} Gemini calls`, `${Math.round(S.t)} s`].filter(Boolean).join(" · ");
+    const facts = [`${all.length} listings checked`, scams ? `${scams} scam${scams === 1 ? "" : "s"} avoided` : null, `${Math.round(S.t)} s`].filter(Boolean).join(" · ");
 
     E.handoffTitle.textContent = confirmed ? "Done! You've got a deal."
       : ids.length === 1 ? "A seller agreed. Confirm it?"
@@ -931,7 +944,7 @@
     if (es) es.close();
     reset();
     E.board.innerHTML = ""; E.board.classList.remove("has-short"); E.rejList.innerHTML = ""; E.panes.innerHTML = ""; E.threads.innerHTML = ""; activePane = null; E.deals.innerHTML = ""; E.savings.innerHTML = "";
-    E.reqChips.innerHTML = ""; E.callsN.textContent = "0";
+    E.reqChips.innerHTML = ""; E.calls.textContent = "Starting…";
     [E.question, E.reqs, E.boardSec, E.rejected, E.nego, E.handoff, E.error, E.moreBtn, E.sendBar].forEach((el) => show(el, false));
     E.picks.innerHTML = '<div class="pick skel"></div><div class="pick skel"></div><div class="pick skel"></div>';
     E.picksTitle.textContent = "Finding your best fits…";
