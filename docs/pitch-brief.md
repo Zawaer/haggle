@@ -65,6 +65,9 @@ Blocket tabs ahead of them.*
 - **Google Gemini**: 3.8 Flash for reading listings and negotiating (structured output, Interactions
   API); 3.5 Flash-Lite plays the sellers and reads human sellers' replies; 3.5 Transcribe for voice.
 - **Matrix OS**: haggle runs on our Matrix cloud computer; we view it through Matrix port forwarding.
+- **condense.chat**: compresses each negotiation's growing context (listing text + older chat) before every
+  agent turn. Benchmark with it on: 100% of the available discount still captured, 0 over budget. Their
+  dashboard shows the requests and tokens saved live.
 
 ## Likely judge questions
 

@@ -77,6 +77,9 @@ Negotiation benchmark, 3 full hunts, 15 seller threads (`eval/eval_negotiation.p
 | Deals over budget | **0** |
 | Per hunt | **~54 s, ~61 Gemini calls** |
 
+With **condense** compression on (2 runs, 10 threads): **100%** of the available discount captured, 0 deals
+over budget, 857 kr saved per deal: compression didn't hurt negotiation quality.
+
 Caveat: the sellers are simulated (Gemini with a hidden minimum price and a personality), so this measures
 the agent against our seller model, not real people.
 
@@ -114,6 +117,10 @@ between two agents.
 - Vanilla HTML/CSS/JS frontend (no build step)
 - **Matrix OS**: haggle runs on our Matrix cloud computer (the always-on machine that keeps hunting and
   watching), viewed through `matrix forward 3123`
+- **condense.chat**: context compression for the negotiation agents (`/v1/compress`): the listing text and
+  chat history older than the last two messages are compressed before every buyer turn; latest messages stay
+  verbatim; extraction is never compressed (condense is lossy). Shown as "condense: −X% negotiation context".
+  Set `CONDENSE_AUTH_TOKEN` in `.env`; `HAGGLE_CONDENSE=0` turns it off.
 - **MCP** server so other agents can drive haggle
 
 ## Run it

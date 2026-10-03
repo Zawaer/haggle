@@ -1,12 +1,12 @@
 {
- "runs": 3,
- "threads": 15,
- "deals": 12,
- "avg_discount_captured": 0.988,
- "avg_pct_below_asking": 0.125,
- "avg_saved_sek": 917,
+ "runs": 2,
+ "threads": 10,
+ "deals": 7,
+ "avg_discount_captured": 1.0,
+ "avg_pct_below_asking": 0.119,
+ "avg_saved_sek": 857,
  "over_budget_deals": 0,
  "walked_or_dropped": 3,
- "avg_calls_per_hunt": 61,
+ "avg_calls_per_hunt": 63,
  "avg_seconds_per_hunt": 54
 }

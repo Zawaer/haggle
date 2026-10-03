@@ -81,7 +81,7 @@ class Hunt:
 
     def snapshot(self):
         return {"id": self.id, "request": self.request, "req": self.req, "phase": self.phase,
-                "items": self.items, "calls": self.budget.calls}
+                "items": self.items, "calls": self.budget.calls, "condense": self._condense_stats()}
 
     # ------------------------------------------------------------ steps 1-5
     async def run(self):
@@ -426,10 +426,17 @@ class Hunt:
             return base + 40 * it["deal"]["saved_sek"] / max(1, it["deal"]["asking_sek"])
         deals = sorted((it for it in self.items.values() if it["state"] == "deal_offered"), key=lambda it: -value(it))
         await self.emit("handoff", ids=[it["id"] for it in deals],
-                        best=deals[0]["id"] if deals else None, market_ref=self.market_ref)
+                        best=deals[0]["id"] if deals else None, market_ref=self.market_ref, condense=self._condense_stats())
         await self.phase_to("awaiting_confirmation" if deals else "done")
         if not self.watching and not any(i["state"] == "confirmed" for i in self.items.values()):
             asyncio.ensure_future(self.watch())
+
+    def _condense_stats(self):
+        b = self.budget
+        if not b.condense_in:
+            return None
+        return {"calls": b.condense_calls, "chars_in": b.condense_in, "chars_out": b.condense_out,
+                "saved_pct": round(100 * (1 - b.condense_out / b.condense_in))}
 
     async def confirm(self, lid):
         it = self.items[lid]

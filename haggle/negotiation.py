@@ -7,7 +7,7 @@ offers are checked against real state, and every message counts against a per-se
 The SELLERS are the mock marketplace's humans. Each has a hidden minimum price, a personality and the
 true specs of their item (from data/listings.json), and never sees the buyer's limits.
 """
-from . import config
+from . import condense, config
 from .llm import ask_json
 
 BUYER_SCHEMA = {
@@ -71,8 +71,14 @@ Only refer to {listing['source']} itself (its own shipping/payment); never menti
 
 
 async def buyer_turn(req, listing, specs_status, thread, facts, budget, note=""):
+    # condense: compress the already-digested listing text and chat older than the last two messages
+    keep = 2
+    old = [m["text"] for m in thread[:-keep]] if len(thread) > keep else []
+    desc, *old_c = await condense.compress([listing["description"], *old], budget, min_chars=120)
+    if old_c:
+        thread = [{**m, "text": t} for m, t in zip(thread[:-keep], old_c)] + thread[-keep:]
     prompt = f"""LISTING: {listing['title']} — asking {listing['price_sek']:,} SEK, {listing['location']}
-Description: {listing['description']}
+Description{' (compressed)' if desc != listing['description'] else ''}: {desc}
 
 Requirement check so far: {specs_status}
 Unknown items to ask about: {', '.join(k for k, v in specs_status.items() if v['status'] == 'uncertain') or 'none'}

@@ -707,7 +707,7 @@
     const saved = focus?.deal?.saved_sek || 0;
     const pct = focus?.deal?.asking_sek ? Math.round((saved / focus.deal.asking_sek) * 100) : 0;
     const scams = all.filter((x) => x.state === "scam").length;
-    const facts = [`${all.length} listings read`, scams ? `${scams} scam${scams === 1 ? "" : "s"} avoided` : null, `${nego} seller${nego === 1 ? "" : "s"}, in parallel`, `${S.calls} Gemini calls`, `${Math.round(S.t)} s`].filter(Boolean)
+    const facts = [`${all.length} listings read`, scams ? `${scams} scam${scams === 1 ? "" : "s"} avoided` : null, `${nego} seller${nego === 1 ? "" : "s"}, in parallel`, `${S.calls} Gemini calls`, S.handoff?.condense ? `condense: −${S.handoff.condense.saved_pct}% negotiation context` : null, `${Math.round(S.t)} s`].filter(Boolean)
       .map((f) => `<span>${f}</span>`).join(" · ");
 
     if (!ids.length) {
