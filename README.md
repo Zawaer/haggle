@@ -25,7 +25,32 @@
 
   It's a free instance, so the first request after a quiet spell can take about a minute to wake it up.
 
-  ### From your agent
+  ### Claude Code plugin (public demo)
+
+  Install the shopping skill and hosted MCP connection together:
+
+  ```bash
+  claude plugin marketplace add Zawaer/haggle
+  claude plugin install haggle@haggle-marketplace --scope user
+  ```
+
+  Start a new Claude Code session, then run `/haggle:haggle` or ask it to find a second-hand product.
+  The plugin loads the shared `skills/haggle/SKILL.md` and connects to
+  `https://haggle-p61s.onrender.com/mcp/`. No separate skill copy, MCP setup, Python installation or Gemini
+  API key is needed for the public demo. Use `/mcp` to check the connection.
+
+  If you previously added Haggle manually, remove that old MCP entry and standalone skill when switching
+  to the plugin to avoid duplicate tools and instructions.
+
+  For updates, run `claude plugin marketplace update haggle-marketplace`, then
+  `claude plugin update haggle@haggle-marketplace`. Updating the plugin does not deploy backend changes;
+  those still need to be deployed to the hosted service.
+
+  To try a local checkout, run `claude --plugin-dir /absolute/path/to/haggle`.
+  Validate the package from the repository root with `claude plugin validate .claude-plugin/plugin.json`
+  and `claude plugin validate .claude-plugin/marketplace.json`.
+
+  ### Manual MCP setup (other deployments)
 
   haggle exposes a streamable HTTP MCP server. Configure an `Authorization: Bearer <token>` header with the
   operator-provided access token (see the JSON configuration below).

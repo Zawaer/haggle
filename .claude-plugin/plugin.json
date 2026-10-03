@@ -1,0 +1,16 @@
+{
+  "name": "haggle",
+  "version": "1.0.0",
+  "description": "Find, vet and negotiate second-hand products on mockbay, with user approval before outreach and deal confirmation.",
+  "author": {
+    "name": "Zawaer"
+  },
+  "repository": "https://github.com/Zawaer/haggle",
+  "keywords": ["shopping", "second-hand", "negotiation", "mockbay"],
+  "mcpServers": {
+    "haggle": {
+      "type": "http",
+      "url": "https://haggle-p61s.onrender.com/mcp/"
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "haggle-marketplace",
+  "description": "Install Haggle's shopping skill and hosted MCP connection for Claude Code.",
+  "owner": {
+    "name": "Zawaer"
+  },
+  "plugins": [
+    {
+      "name": "haggle",
+      "source": "./",
+      "description": "Haggle's shopping skill and hosted MCP connection in one plugin. Uses a simulated marketplace and sellers."
+    }
+  ]
+}
