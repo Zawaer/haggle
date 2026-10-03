@@ -13,4 +13,22 @@ if [ ! -f "$stamp" ]; then
 fi
 if [ -z "${GEMINI_API_KEY:-}" ] && [ ! -f .env ]; then echo "Set GEMINI_API_KEY or create .env" >&2; exit 1; fi
 if [ -n "${HAGGLE_MARKET_URL:-}" ]; then .venv/bin/python seller_bot.py & fi
-exec .venv/bin/uvicorn haggle.server:app --host 0.0.0.0 --port "${PORT:-3123}"
+
+if [ "${HAGGLE_AUTOPULL:-}" = "1" ]; then
+  # Dev mode: follow the repo. Pull every 20 s; uvicorn --reload restarts on engine changes (this wipes
+  # in-progress hunts, so don't use it for the real demo). UI changes need only a browser refresh.
+  echo "autopull: following origin every 20 s (Ctrl+C stops everything)"
+  ( while sleep 20; do
+      out=$(git pull --ff-only -q 2>&1) || echo "autopull: $out"
+      stamp=".venv/.req-$(cksum < requirements.txt | cut -d' ' -f1)"
+      if [ ! -f "$stamp" ]; then
+        if command -v uv >/dev/null; then uv pip install -q --python .venv/bin/python -r requirements.txt
+        else .venv/bin/pip install -q -r requirements.txt; fi
+        touch "$stamp"
+      fi
+    done ) &
+  trap 'kill 0' EXIT
+  .venv/bin/uvicorn haggle.server:app --host 0.0.0.0 --port "${PORT:-3123}" --reload --reload-dir haggle
+else
+  exec .venv/bin/uvicorn haggle.server:app --host 0.0.0.0 --port "${PORT:-3123}"
+fi
