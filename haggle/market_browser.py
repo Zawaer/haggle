@@ -219,8 +219,9 @@ class BrowserMarket:
                 await self._shot(page, f"seller of {lid} replied")
                 # price: read from the seller's words (the deal panel total includes shipping, which mixes
                 # item price and delivery); the panel total is added as context for the reader
-                text = "\n".join(new) + (f"\n[mockbay deal panel: total {t['total'].strip()} incl. delivery]" if t["total"].strip() else "")
-                return {"text": text, "price_sek": None, "thoughts": None}
+                # context goes to the reader only; the transcript shows just the seller's words
+                ctx = f"[mockbay deal panel: total {t['total'].strip()} incl. delivery]" if t["total"].strip() else ""
+                return {"text": "\n".join(new), "context": ctx, "price_sek": None, "thoughts": None}
             await asyncio.sleep(1.0)
         return None
 

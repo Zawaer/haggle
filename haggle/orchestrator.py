@@ -448,7 +448,8 @@ class Hunt:
             if got is None:
                 await self.set_state(lid, "no_reply", reason="seller did not reply in time")
                 return
-            r = await negotiation.read_seller(it["thread"], got["text"], got.get("price_sek"), self.budget, req=self.req)
+            seen = got["text"] + ("\n" + got["context"] if got.get("context") else "")
+            r = await negotiation.read_seller(it["thread"], seen, got.get("price_sek"), self.budget, req=self.req)
             if self.closed or it["state"] != "negotiating":
                 return
             if len(re.findall(r"[A-Za-zÅÄÖåäö]", got["text"])) < 3:
