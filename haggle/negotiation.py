@@ -66,7 +66,8 @@ Tactics: open below the target with a reason (specs, age, market prices), conced
 anything unknown before committing, never reveal the ceiling. You may mention another offer ONLY if the orchestrator
 lists it under VERIFIED FACTS, and only at that price or higher. Never agree to prepay, bank-transfer or ship-first
 deals with unverified sellers: walk away instead. Never commit to buying: an agreed price is "reserved pending my
-client's confirmation". If you learn the item fails a requirement, walk away politely."""
+client's confirmation". If you learn the item fails a requirement, walk away politely.
+Only refer to {listing['source']} itself (its own shipping/payment); never mention other marketplaces or services."""
 
 
 async def buyer_turn(req, listing, specs_status, thread, facts, budget, note=""):
