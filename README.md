@@ -27,6 +27,33 @@ Two parts, kept strictly apart:
 
 You can use haggle from an AI chat (Gemini CLI, Claude Code, Codex via MCP) or from our own web page.
 
+## Try it
+
+**Web page:** https://haggle-p61s.onrender.com/
+
+It runs on a free instance, so the first visit after a quiet spell can take about a minute to wake up.
+Add `?replay=1` to watch a recorded hunt.
+
+**From your AI chat (MCP):** connect haggle and just ask for what you want.
+
+```bash
+# Claude Code (plugin: MCP connection + shopping skill)
+claude plugin marketplace add Zawaer/haggle
+claude plugin install haggle@haggle-marketplace --scope user
+
+# or add the MCP server directly
+claude mcp add --transport http haggle https://haggle-p61s.onrender.com/mcp/
+gemini mcp add --scope user --transport http --timeout 600000 haggle https://haggle-p61s.onrender.com/mcp/
+codex mcp add haggle --url https://haggle-p61s.onrender.com/mcp/
+```
+
+Then ask:
+
+> "Use haggle to find me a used gaming PC under 8,000 kr in Stockholm, at least an RTX 3060."
+
+Your agent starts a hunt, sends you a link to watch it live, and asks you before contacting sellers
+and before confirming a deal.
+
 ## Tech
 
 - **Google Gemini** (Interactions API, `google-genai`): intake, listing extraction, buyer agent,
