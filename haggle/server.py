@@ -17,6 +17,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from . import limits
 from .config import ROOT
 from .orchestrator import HUNTS, Hunt
 
@@ -66,13 +67,24 @@ class One(BaseModel):
     id: str
 
 
+def _client(request: Request):
+    fwd = request.headers.get("x-forwarded-for", "")
+    return fwd.split(",")[0].strip() or (request.client.host if request.client else None)
+
+
 @app.post("/api/hunts")
-async def start(body: Req):
+async def start(body: Req, request: Request):
     if body.replay:
         from .replay import ReplayHunt
         h = ReplayHunt()
     else:
-        h = Hunt(body.request.strip())
+        if not body.request.strip():
+            raise HTTPException(400, "Describe what you want to buy.")
+        try:
+            limits.check_new_hunt(HUNTS, _client(request))
+        except limits.LimitError as e:
+            raise HTTPException(429, str(e))
+        h = Hunt(body.request.strip()[:2000])
     _bg(h.run())
     return {"id": h.id}
 

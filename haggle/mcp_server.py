@@ -8,20 +8,30 @@ hunt_status -> confirm_deal. The human stays in the loop: the agent relays the s
 must get the user's OK before approving or confirming.
 """
 import asyncio
+import os
 
 from mcp.server.mcpserver import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
 
+from . import limits
 from .orchestrator import HUNTS, Hunt
+
+# Where the live dashboard is reachable for the user (Render sets RENDER_EXTERNAL_URL automatically).
+PUBLIC_URL = (os.environ.get("HAGGLE_PUBLIC_URL") or os.environ.get("RENDER_EXTERNAL_URL")
+              or f"http://localhost:{os.environ.get('PORT', '3123')}").rstrip("/")
+MAX_WAIT = 75  # seconds per tool call: stays under typical proxy timeouts (~100 s); poll hunt_status for more
 
 mcp = MCPServer(
     name="haggle",
-    instructions="haggle finds, vets and negotiates second-hand purchases (mock Blocket/Tradera/Facebook Marketplace). "
-                 "Start a hunt, show the user the shortlist and drafted messages, and ONLY call approve_outreach / "
-                 "confirm_deal after the user explicitly agrees.",
+    instructions="haggle finds, vets and negotiates second-hand purchases on mockbay, a simulated marketplace with "
+                 "simulated sellers. Flow: start_hunt -> (answer_question if it asks one) -> show the user the shortlist "
+                 "and drafted messages -> approve_outreach ONLY after the user explicitly agrees -> show the deals -> "
+                 "confirm_deal ONLY with the deal the user picks. Each call waits at most ~75 s; if 'phase' is not yet "
+                 "awaiting_approval / awaiting_confirmation / done, call hunt_status with wait_seconds=60 until it is. "
+                 "Always give the user the dashboard_url so they can watch the negotiations live.",
 )
 _tasks = set()
-GATES = ("awaiting_approval", "awaiting_confirmation", "done")
+GATES = ("awaiting_approval", "awaiting_confirmation", "done", "error")
 
 
 def _bg(coro):
@@ -32,9 +42,11 @@ def _bg(coro):
 
 def _summary(h):
     items = h.items.values()
-    out = {"hunt_id": h.id, "phase": h.phase, "gemini_calls": h.budget.calls,
+    out = {"hunt_id": h.id, "phase": h.phase, "dashboard_url": f"{PUBLIC_URL}/?h={h.id}", "gemini_calls": h.budget.calls,
            "counts": {s: sum(1 for i in items if i["state"] == s) for s in
                       ("matched", "uncertain", "reject", "scam", "shortlisted", "negotiating", "deal_offered")}}
+    if h.phase == "error":
+        out["error"] = getattr(h, "error", "the hunt failed")
     if h.req:
         out["requirements"] = h.req.get("summary")
     q = next((e for e in reversed(h.events) if e["type"] == "question"), None)
@@ -68,13 +80,20 @@ async def _wait(h, seconds):
 
 
 @mcp.tool()
-async def start_hunt(request: str, wait_seconds: int = 90) -> dict:
+async def start_hunt(request: str, wait_seconds: int = 60) -> dict:
     """Start a hunt for a second-hand item described in plain language (budget, specs, location).
-    Waits up to wait_seconds for the shortlist (or a clarifying question) and returns the status."""
-    h = Hunt(request.strip())
+    Waits up to wait_seconds (max 75) for the shortlist or a clarifying question, then returns the status;
+    if not there yet, poll hunt_status(wait_seconds=60). Give the user the dashboard_url to watch live."""
+    if not request.strip():
+        return {"error": "describe what to buy"}
+    try:
+        limits.check_new_hunt(HUNTS)  # global limits only: all MCP clients look alike
+    except limits.LimitError as e:
+        return {"error": str(e)}
+    h = Hunt(request.strip()[:2000])
     _bg(h.run())
     await asyncio.sleep(0.2)
-    await _wait(h, min(wait_seconds, 120))
+    await _wait(h, min(wait_seconds, MAX_WAIT))
     return _summary(h)
 
 
@@ -85,26 +104,26 @@ async def hunt_status(hunt_id: str, wait_seconds: int = 0) -> dict:
     if not h:
         return {"error": "no such hunt"}
     if wait_seconds:
-        await _wait(h, min(wait_seconds, 120))
+        await _wait(h, min(wait_seconds, MAX_WAIT))
     return _summary(h)
 
 
 @mcp.tool()
-async def answer_question(hunt_id: str, answer: str, wait_seconds: int = 90) -> dict:
+async def answer_question(hunt_id: str, answer: str, wait_seconds: int = 60) -> dict:
     """Answer the hunt's clarifying question (relay the user's answer)."""
     h = HUNTS.get(hunt_id)
     if not h or not h.answer_future or h.answer_future.done():
         return {"error": "no open question"}
     h.answer_future.set_result(answer)
     await asyncio.sleep(0.2)
-    await _wait(h, min(wait_seconds, 120))
+    await _wait(h, min(wait_seconds, MAX_WAIT))
     return _summary(h)
 
 
 @mcp.tool()
-async def approve_outreach(hunt_id: str, listing_ids: list[str], wait_seconds: int = 110) -> dict:
+async def approve_outreach(hunt_id: str, listing_ids: list[str], wait_seconds: int = 60) -> dict:
     """Send the drafted opening messages to the approved sellers and start negotiating with them in parallel.
-    Only call this after the user approved these listings. Waits for the deals."""
+    Only call this after the user approved these listings. Waits up to 75 s; then poll hunt_status for the deals."""
     h = HUNTS.get(hunt_id)
     if not h:
         return {"error": "no such hunt"}
@@ -112,7 +131,7 @@ async def approve_outreach(hunt_id: str, listing_ids: list[str], wait_seconds: i
         return {"error": f"can't approve in phase {h.phase}"}
     _bg(h.approve(listing_ids))
     await asyncio.sleep(0.5)
-    await _wait(h, min(wait_seconds, 120))
+    await _wait(h, min(wait_seconds, MAX_WAIT))
     return _summary(h)
 
 

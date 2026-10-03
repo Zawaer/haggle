@@ -75,7 +75,12 @@
   // ------------------------------------------------------------------ api
   async function api(path, body) {
     const r = await fetch(path, { method: body ? "POST" : "GET", headers: { "Content-Type": "application/json" }, body: body ? JSON.stringify(body) : undefined });
-    if (!r.ok) throw new Error((await r.text().catch(() => "")) || r.statusText);
+    if (!r.ok) {
+      const t = await r.text().catch(() => "");
+      let msg = t;
+      try { msg = JSON.parse(t).detail || t; } catch {}
+      throw new Error(msg || r.statusText);
+    }
     return r.json();
   }
 

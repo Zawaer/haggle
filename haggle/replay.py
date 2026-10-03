@@ -14,6 +14,8 @@ PAUSE_AT = {"awaiting_approval": "approve", "awaiting_confirmation": "confirm"}
 
 
 class ReplayHunt(Hunt):
+    is_replay = True  # no API calls: exempt from the public limits
+
     def __init__(self, path=DATA / "demo_run.json", speed=1.0):
         rec = json.loads(open(path).read())
         super().__init__(rec["request"])

@@ -12,7 +12,7 @@ import time
 
 from google import genai
 
-from . import config
+from . import config, limits
 
 log = logging.getLogger("haggle.llm")
 _client = None
@@ -41,6 +41,7 @@ class Budget:
         if self.calls >= self.cap:
             raise RuntimeError(f"LLM call budget of {self.cap} reached for this hunt")
         self.calls += 1
+        limits.count_call()
 
 
 def _call(model, system, prompt, schema, thinking, images):

@@ -1,0 +1,19 @@
+# One-click public deploy: https://render.com/deploy?repo=https://github.com/Zawaer/haggle
+# Render asks for the two secret keys during setup; they are never stored in the repo.
+services:
+  - type: web
+    name: haggle
+    runtime: python
+    plan: free            # free sleeps after 15 min idle (~1 min cold start); "starter" stays awake
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn haggle.server:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/info
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: CONDENSE_AUTH_TOKEN
+        sync: false
+      - key: HAGGLE_HOST_LABEL
+        value: Render (public demo)
+      - key: HAGGLE_WATCH_MINUTES
+        value: "20"
