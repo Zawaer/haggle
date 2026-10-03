@@ -57,24 +57,6 @@ Then ask:
 Your agent starts a hunt, sends you a link to watch it live, and asks you before contacting sellers
 and before confirming a deal. [Setup, updates and troubleshooting](docs/mcp.md).
 
-## condense savings
-
-condense.chat compresses each negotiation's growing context (listing text and older messages) before
-every buyer turn. We ran 4 hunts with it and 4 without, against the same simulated mockbay sellers
-(16 deals each way):
-
-| | Without condense | With condense |
-|---|---|---|
-| Negotiation context sent to Gemini | 39,452 chars | 31,307 chars (**−20.6%**) |
-| Share of possible discount won | 98.1% | 100% |
-| Average saved per deal | 906 kr | 925 kr |
-| Deals over budget | 0 | 0 |
-| Gemini calls per hunt | 80 | 78 |
-
-**Result:** about 20% less negotiation context with no loss in deal quality. The small edge in discount
-is within run-to-run noise. Context size is measured by haggle (characters before and after each
-`/v1/compress` call, 26 calls); listing reading is not compressed, so total Gemini usage falls by less.
-
 ## Tech
 
 - **Google Gemini** (Interactions API, `google-genai`): intake, listing extraction, buyer agent,
@@ -99,10 +81,20 @@ Before every move the buyer agent makes, haggle sends the listing text and the c
 the last two messages through condense.chat. The latest messages stay word for word, and listing
 extraction is never compressed (condense is lossy).
 
-In our test (same request, 4 runs with and 4 without), the text sent to the negotiator was **20.6%
-smaller**, with no loss in deal quality: 100% vs 98.1% of the available discount captured, and no deal
-over budget either way. The samples are small and the sellers are simulated, so read this as "no quality
-loss observed".
+In our test (same request, 4 runs with and 4 without, 16 deals each way):
+
+| | Without condense | With condense |
+|---|---|---|
+| Negotiation context sent to Gemini | 39,452 chars | 31,307 chars (**−20.6%**) |
+| Share of possible discount won | 98.1% | 100% |
+| Average saved per deal | 906 kr | 925 kr |
+| Deals over budget | 0 | 0 |
+| Gemini calls per hunt | 80 | 78 |
+
+So: about 20% less negotiation context, with no loss in deal quality. The context size is measured by haggle
+(characters before and after each `/v1/compress` call, 26 calls). Listing reading isn't compressed, so total
+Gemini usage falls by less. The samples are small and the sellers are simulated, so read the discount
+difference as noise: "no quality loss observed".
 
 ## Team
 
