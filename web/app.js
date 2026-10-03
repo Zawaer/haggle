@@ -92,11 +92,36 @@
       }
       try { handle(ev); } catch (e) { console.error("event failed", ev, e); }
     };
-    es.onerror = () => {
-      // the browser retries on its own; if it gave up, reconnect from where we were
-      if (es.readyState === EventSource.CLOSED) setTimeout(() => S.id === id && connect(id), 1500);
+    es.onerror = async () => {
+      // Is the hunt still there? (A server restart wipes hunts; don't retry a dead one forever.)
+      try {
+        const r = await fetch(`/api/hunts/${id}`);
+        if (r.status === 404) {
+          es.close(); es = null;
+          history.replaceState(null, "", location.pathname + (E.replay.checked ? "?replay=1" : ""));
+          onNotice("This hunt is no longer on the server (it was restarted). Press Hunt to start a new one.");
+          E.huntBtn.disabled = false; document.body.classList.remove("running");
+          return;
+        }
+      } catch { /* server unreachable: let the browser keep retrying */ }
+      if (es && es.readyState === EventSource.CLOSED) setTimeout(() => S.id === id && connect(id), 1500);
     };
   }
+
+  // Watchdog: a server restart wipes hunts. If ours is gone, say so instead of retrying a dead stream.
+  setInterval(async () => {
+    if (!S.id || !S.started || S.gone) return;
+    try {
+      const r = await fetch(`/api/hunts/${S.id}`);
+      if (r.status !== 404) return;
+      S.gone = true;
+      if (es) { es.close(); es = null; }
+      history.replaceState(null, "", location.pathname + (E.replay.checked ? "?replay=1" : ""));
+      onNotice("This hunt is no longer on the server (haggle was restarted). Press Hunt to start a new one.");
+      E.huntBtn.disabled = false;
+      document.body.classList.remove("running");
+    } catch { /* server down for a moment: keep waiting */ }
+  }, 4000);
 
   async function startHunt() {
     const replay = E.replay.checked;
@@ -106,7 +131,7 @@
     try {
       const { id } = await api("/api/hunts", { request: replay ? "" : request, replay });
       resetUI();
-      S.started = true;
+      S.started = true; S.gone = false;
       E.echo.textContent = replay ? "Replaying a recorded hunt…" : request;
       document.body.classList.add("running");
       autosize();
