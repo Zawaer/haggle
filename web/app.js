@@ -753,61 +753,71 @@
   }).catch(() => {});
 
   // ------------------------------------------------------------------ voice input (Gemini 3.5 Transcribe)
-  const mic = { btn: $("#mic-btn"), rec: null, chunks: [], t0: 0, timer: null };
-  const micLbl = (t) => { $(".mic-lbl", mic.btn).textContent = t; };
-  if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) mic.btn.classList.add("hidden");
-
-  async function micStart() {
-    let stream;
-    try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); }
-    catch (e) { showError("Microphone blocked. Allow mic access (the page must be https or localhost)."); return; }
-    const type = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg"].find((t) => MediaRecorder.isTypeSupported(t)) || "";
-    mic.rec = new MediaRecorder(stream, { ...(type ? { mimeType: type } : {}), audioBitsPerSecond: 24000 });
-    mic.chunks = [];
-    mic.rec.ondataavailable = (e) => e.data.size && mic.chunks.push(e.data);
-    mic.rec.onstop = () => { stream.getTracks().forEach((t) => t.stop()); micSend(); };
-    mic.rec.start();
-    mic.t0 = performance.now();
-    mic.btn.classList.add("rec");
-    micLbl("0:00 · stop");
-    mic.timer = setInterval(() => {
-      const s = (performance.now() - mic.t0) / 1000;
-      micLbl(`${fmtClock(s)} · stop`);
-      if (s > 30) micStop();  // keep clips short
-    }, 250);
+  // One recorder per Speak button: the request box and the clarifying-question answer.
+  async function transcribeBlob(blob) {
+    // small chunks: survives tunnels (e.g. Matrix OS port forwarding) that drop large request bodies
+    const id = Math.random().toString(36).slice(2, 10), CH = 24000;
+    for (let i = 0, off = 0; off < blob.size; i++, off += CH) {
+      const rc = await fetch(`/api/transcribe/chunk?id=${id}&i=${i}`, { method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: blob.slice(off, off + CH) });
+      if (!rc.ok) throw new Error(`upload failed (${rc.status})`);
+    }
+    const r = await fetch(`/api/transcribe/finish?id=${id}&mime=${encodeURIComponent(blob.type)}`, { method: "POST" });
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.status);
+    const { text } = await r.json();
+    if (!text) throw new Error("didn't catch that");
+    return text;
   }
 
-  function micStop() {
-    clearInterval(mic.timer);
-    mic.btn.classList.remove("rec");
-    if (mic.rec && mic.rec.state !== "inactive") mic.rec.stop();
+  function makeMic(btn, onText) {
+    if (!btn) return;
+    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) { btn.classList.add("hidden"); return; }
+    const m = { rec: null, chunks: [], t0: 0, timer: null };
+    const lbl = (t) => { const l = $(".mic-lbl", btn); if (l) l.textContent = t; };
+    async function start() {
+      let stream;
+      try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); }
+      catch (e) { showError("Microphone blocked. Allow mic access (the page must be https or localhost)."); return; }
+      const type = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg"].find((t) => MediaRecorder.isTypeSupported(t)) || "";
+      m.rec = new MediaRecorder(stream, { ...(type ? { mimeType: type } : {}), audioBitsPerSecond: 24000 });
+      m.chunks = [];
+      m.rec.ondataavailable = (e) => e.data.size && m.chunks.push(e.data);
+      m.rec.onstop = () => { stream.getTracks().forEach((t) => t.stop()); send(); };
+      m.rec.start();
+      m.t0 = performance.now();
+      btn.classList.add("rec");
+      lbl("0:00 · stop");
+      m.timer = setInterval(() => {
+        const sec = (performance.now() - m.t0) / 1000;
+        lbl(`${fmtClock(sec)} · stop`);
+        if (sec > 30) stop();  // keep clips short
+      }, 250);
+    }
+    function stop() {
+      clearInterval(m.timer);
+      btn.classList.remove("rec");
+      if (m.rec && m.rec.state !== "inactive") m.rec.stop();
+    }
+    async function send() {
+      const blob = new Blob(m.chunks, { type: m.rec.mimeType || "audio/webm" });
+      m.rec = null;
+      if (blob.size < 1500) { lbl("Speak"); return; }
+      btn.disabled = true; lbl("Transcribing…");
+      try { onText(await transcribeBlob(blob)); }
+      catch (e) { showError(`Voice: ${e.message}`); }
+      finally { btn.disabled = false; lbl("Speak"); }
+    }
+    btn.addEventListener("click", () => (m.rec ? stop() : start()));
   }
 
-  async function micSend() {
-    const blob = new Blob(mic.chunks, { type: mic.rec.mimeType || "audio/webm" });
-    mic.rec = null;
-    if (blob.size < 1500) { micLbl("Speak"); return; }
-    mic.btn.disabled = true; micLbl("Transcribing…");
-    try {
-      // small chunks: survives tunnels (e.g. Matrix OS port forwarding) that drop large request bodies
-      const id = Math.random().toString(36).slice(2, 10), CH = 24000;
-      for (let i = 0, off = 0; off < blob.size; i++, off += CH) {
-        const rc = await fetch(`/api/transcribe/chunk?id=${id}&i=${i}`, { method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: blob.slice(off, off + CH) });
-        if (!rc.ok) throw new Error(`upload failed (${rc.status})`);
-      }
-      const r = await fetch(`/api/transcribe/finish?id=${id}&mime=${encodeURIComponent(blob.type)}`, { method: "POST" });
-      if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.status);
-      const { text } = await r.json();
-      if (!text) throw new Error("didn't catch that");
-      E.request.value = text;
-      E.request.dispatchEvent(new Event("input"));
-      micLbl("Speak");
-      setTimeout(() => startHunt(), 700);  // show what was heard, then go
-    } catch (e) { showError(`Voice: ${e.message}`); micLbl("Speak"); }
-    finally { mic.btn.disabled = false; }
-  }
-
-  mic.btn.addEventListener("click", () => (mic.rec ? micStop() : micStart()));
+  makeMic($("#mic-btn"), (text) => {
+    E.request.value = text;
+    E.request.dispatchEvent(new Event("input"));
+    setTimeout(() => startHunt(), 700);  // show what was heard, then go
+  });
+  makeMic($("#mic-answer"), (text) => {
+    E.answer.value = text;
+    setTimeout(() => E.answerForm.requestSubmit(), 700);
+  });
   E.request.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); startHunt(); } });
   E.answerForm.addEventListener("submit", async (e) => {
     e.preventDefault();
