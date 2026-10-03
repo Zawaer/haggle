@@ -90,6 +90,7 @@ def render(proposal, req, listing, verdicts, claim_ok):
         if not claim_ok(claim):
             raise ValueError("unverified competing offer")
     questions = {
+        "type": ("Vad är det för vara och modell?", "What is the product type and model?"),
         "gpu": ("Vilket exakt grafikkort sitter i?", "What is the exact GPU model?"),
         "ram": ("Hur mycket RAM har den?", "How much RAM does it have?"),
         "storage": ("Vilken lagring finns, SSD eller HDD och hur många GB?", "What storage does it have: SSD or HDD, and how many GB?"),
@@ -99,6 +100,10 @@ def render(proposal, req, listing, verdicts, claim_ok):
     }
     unknown = [questions[k][0 if sv else 1] for k, v in verdicts.items()
                if v["status"] == "uncertain" and k in questions]
+    for key, verdict in verdicts.items():
+        if key.startswith("attr_") and verdict["status"] == "uncertain":
+            label = verdict.get("label", key[5:])
+            unknown.append(f"Kan du bekräfta följande krav: {label}?" if sv else f"Can you confirm this requirement: {label}?")
     p = f"{price:,.2f}".rstrip("0").rstrip(".").replace(",", " ")
     if action == "offer":
         text = f"Kan du tänka dig {p} kr totalt, inklusive eventuell frakt?" if sv else f"Would you consider {p} SEK total, including any shipping?"

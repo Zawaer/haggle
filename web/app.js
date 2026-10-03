@@ -34,9 +34,9 @@
     paused: "Restored after restart. Resume to review fresh drafts.",
     error: "This hunt needs attention. Review the error and resume when ready.",
   };
-  const VLABEL = { type: "Type", gpu: "GPU", ram: "RAM", storage: "SSD", price: "Price", location: "Location", works: "Works" };
-  const VORDER = ["type", "gpu", "ram", "storage", "price", "location", "works"];
-  const MARKS = ["type", "gpu", "ram", "storage", "price", "location"]; // ledger columns
+  const VLABEL = { type: "Type", gpu: "GPU", ram: "RAM", storage: "Storage", attributes: "Details", condition: "Condition", price: "Price", location: "Location", works: "Works" };
+  const verdictLabel = (key, value) => value?.label || VLABEL[key] || key;
+  const MARKS = ["type", "attributes", "condition", "works", "price", "location"]; // ledger columns
   // listing photo (mockbay's real photos; stock PC photo for the local dataset). Hidden if it fails to load.
   const ph = (l, cls) => l && l.photo
     ? `<img class="ph ${cls}" src="${esc(l.photo)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()">` : "";
@@ -342,6 +342,7 @@
     if (req.gpu_min) parts.push(`${esc(req.gpu_min)}${req.gpu_allow_equivalent ? " or better" : " (exact model)"}`);
     if (req.ram_gb_min) parts.push(`${req.ram_gb_min} GB RAM`);
     if (req.storage_gb_min) parts.push(`${fmtGB(req.storage_gb_min)}${req.storage_ssd_required ? " SSD" : ""}`);
+    for (const a of req.attributes || []) parts.push(esc(a.label));
     if (req.budget_max_sek) parts.push(`under <b class="mono">${kr(req.budget_max_sek)}</b>`);
     if (req.city) parts.push(`near ${esc(req.city)}${req.shipping_ok ? " or shipped" : ""}`);
     E.reqChips.innerHTML = parts.join('<span class="sep"> · </span>');
@@ -394,19 +395,25 @@
 
   function mainFail(it) {
     const v = it.verdicts || {};
-    for (const k of VORDER) if (v[k]?.status === "fail") return `${VLABEL[k]}: ${v[k].reason}`;
+    for (const [k, value] of Object.entries(v)) if (value.status === "fail") return `${verdictLabel(k, value)}: ${value.reason}`;
     return it.reason || "doesn't match your requirements";
   }
 
   function specsLine(sp) {
     if (!sp) return "";
     const unk = (s) => `<span class="unk">${s}</span>`;
+    const req = S.req || {};
     const parts = [
-      sp.gpu ? esc(sp.gpu) + (sp.gpu_is_laptop_variant ? " (laptop)" : "") : unk("GPU ?"),
+      sp.gpu ? esc(sp.gpu) + (sp.gpu_is_laptop_variant ? " (laptop)" : "") : req.gpu_min ? unk("GPU ?") : null,
       sp.cpu ? esc(sp.cpu) : null,
-      sp.ram_gb > 0 ? `${sp.ram_gb} GB` : unk("RAM ?"),
-      sp.ssd_gb > 0 ? `${fmtGB(sp.ssd_gb)} SSD` : sp.hdd_gb > 0 ? unk(`${fmtGB(sp.hdd_gb)} HDD`) : sp.storage_type_unclear_gb > 0 ? unk(`${fmtGB(sp.storage_type_unclear_gb)} ?`) : unk("storage ?"),
+      sp.ram_gb > 0 ? `${sp.ram_gb} GB RAM` : req.ram_gb_min ? unk("RAM ?") : null,
+      sp.ssd_gb > 0 ? `${fmtGB(sp.ssd_gb)} SSD` : sp.hdd_gb > 0 ? `${fmtGB(sp.hdd_gb)} HDD` : sp.storage_type_unclear_gb > 0 ? `${fmtGB(sp.storage_type_unclear_gb)} storage` : req.storage_gb_min ? unk("storage ?") : null,
     ].filter(Boolean);
+    for (const rule of req.attributes || []) {
+      const fact = (sp.attributes || []).find((f) => f.key === rule.key);
+      if (fact?.known) parts.push(esc(fact.value || `${fact.number} ${fact.unit || ""}`));
+      else parts.push(unk(esc(rule.label) + " ?"));
+    }
     return parts.join(" · ");
   }
 
@@ -481,7 +488,12 @@
       if (vc.dataset.sig !== sig) {
         vc.dataset.sig = sig;
         vc.innerHTML = MARKS.map((k) => {
-          const v = it.verdicts[k];
+          let v = it.verdicts[k];
+          if (k === "attributes") {
+            const details = Object.entries(it.verdicts).filter(([key]) => key.startsWith("attr_") || ["gpu", "ram", "storage"].includes(key));
+            if (details.length) v = {status: details.some(([, x]) => x.status === "fail") ? "fail" : details.some(([, x]) => x.status === "uncertain") ? "uncertain" : "pass",
+              reason: details.map(([key, x]) => `${verdictLabel(key, x)}: ${x.reason}`).join("; ")};
+          }
           if (!v) return `<i class="mk none">·</i>`;
           return `<button type="button" class="mk ${esc(v.status)}" title="${esc(`${VLABEL[k]}: ${v.reason}`)}" data-reason="${esc(`${VLABEL[k]}: ${v.reason}`)}" aria-label="${esc(`${VLABEL[k]} ${v.status}: ${v.reason}`)}">${VICON[v.status] || "·"}</button>`;
         }).join("");
@@ -522,8 +534,6 @@
   // The shortlist as cards: the top 3 up front, the rest behind "Show more". Tick the sellers to message,
   // then one button sends. Sellers you skip can still be messaged later (the server allows it mid-negotiation).
   const TOP = 3;
-  const PICK_CHECKS = ["gpu", "ram", "storage", "price", "location"];
-  const CHECK_LABEL = { gpu: "GPU", ram: "RAM", storage: "SSD", price: "Price", location: "Location" };
   const picked = new Set();
   let showAll = false;
 
@@ -542,7 +552,7 @@
     ids.forEach((id, i) => { if (i < TOP && !S.touched) picked.add(id); renderPick(id); });
     E.picksTitle.textContent = ids.length === 1 ? "Your best fit" : `Your ${Math.min(TOP, ids.length)} best fits`;
     const all = Object.values(S.items).filter((it) => it.listing).length;
-    E.picksSub.textContent = `Out of ${all} listings, these match what you asked for and look safe. Pick who your agent should message.`;
+    E.picksSub.textContent = `Out of ${all} listings, these are the closest fits. Check any unanswered requirements before choosing. Pick who your agent should message.`;
     updateMore();
     show(E.sendBar, true);
     updateApproveBtn();
@@ -568,7 +578,7 @@
     const sent = st && st !== "shortlisted";
     const on = picked.has(id);
     const v = it.verdicts || {};
-    const checks = PICK_CHECKS.filter((k) => v[k]).map((k) => `<li class="${esc(v[k].status)}" title="${esc(v[k].reason)}">${VICON[v[k].status] || ""} ${CHECK_LABEL[k]}</li>`).join("");
+    const checks = Object.keys(v).map((k) => `<li class="${esc(v[k].status)}" title="${esc(v[k].reason)}">${VICON[v[k].status] || ""} ${esc(verdictLabel(k, v[k]))}</li>`).join("");
     const [rw, rc] = riskWord(it.risk ?? 0);
     const offer = d?.offer_sek ? `Opens at <b class="money mono">${kr(d.offer_sek)}</b>` : d ? "Asks a question first" : `<span class="muted">Writing a message…</span>`;
     let action;

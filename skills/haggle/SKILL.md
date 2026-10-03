@@ -1,6 +1,6 @@
 ---
 name: haggle
-description: Buy second-hand electronics for the user with the haggle MCP server. Use when the user wants to buy something used, especially a PC, laptop or graphics card ("I want a gaming PC", "find me a used laptop under 6000 kr"). Gathers the missing details by asking the user, then lets haggle find, vet, scam-check and negotiate with sellers in parallel, with the user approving every outreach and deal.
+description: Buy second-hand products of any kind for the user with the haggle MCP server. Use when the user wants to buy something used, including electronics, furniture, bicycles, clothing and appliances ("I want a gaming PC", "find me a used laptop under 6000 kr"). Gathers the missing details by asking the user, then lets haggle find, vet, scam-check and negotiate with sellers in parallel, with the user approving every outreach and deal.
 ---
 
 # haggle: second-hand buying agent
@@ -14,8 +14,8 @@ negotiating, and never asks follow-up questions itself.
 
 A hunt needs four things:
 - **max budget in SEK** (required, never guess it)
-- **kind of item**: desktop PC, laptop or graphics card
-- **what it's for or minimum specs** (which games → GPU class, RAM, SSD size)
+- **kind of item**: any product type (for example a MacBook, camera, bicycle, sofa or shoes)
+- **required attributes** (brand/model, processor, size, dimensions, material, color, compatibility, or other needs)
 - **pickup city, or whether shipping is fine**
 
 If anything is missing, call `clarify_request` with the user's words. It returns up to 3 questions with
@@ -50,3 +50,5 @@ Payment and pickup stay with the user.
 - Never invent listings, prices or deals; report only what haggle returns.
 - If a tool returns `error`, tell the user plainly. For a missing budget, ask for it, then start a new hunt.
 - Keep messages short: the user may be on a phone.
+
+Do not redirect users to Windows PCs or reject a product because its attributes differ from PC hardware. Preserve every explicit requirement, including Apple Silicon generation and screen size. Unknown facts must be clarified with sellers before a deal. If the marketplace has no matching inventory, report that accurately.

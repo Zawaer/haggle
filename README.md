@@ -40,7 +40,7 @@ git clone https://github.com/Zawaer/haggle && mkdir -p ~/.claude/skills && cp -r
 questions in chat and hands you a link that starts the hunt in the dashboard.
 
 Then just say *"I want a PC"*. The skill (`skills/haggle/SKILL.md`, the same file for Claude Code and
-Gemini CLI) makes the agent ask what's missing in one message: budget, desktop or laptop, what it's for,
+Gemini CLI) makes the agent ask what's missing in one message: budget, product type, required attributes,
 pickup or shipping. Then it starts the hunt and gives you the dashboard link, shows you the shortlist and
 drafted messages, and asks before contacting sellers. Later it shows the deals and asks which one to
 confirm. haggle itself never asks follow-up questions: the agent (or the web app's question card) does.
@@ -261,10 +261,16 @@ stop watching explicitly. Saved hunts are listed on the home page. No email or p
 
 ## Supported scope and safety
 
-This version checks desktop PCs, laptops and graphics cards: category, GPU, RAM, storage, condition,
-location and price. Unsupported hard requirements (for example CPU model or warranty) are surfaced as
-errors instead of silently ignored; general-purpose shopping is not implemented. Explicitly disallowed
-GPU equivalents and used items are rejected. Unknown required facts must be resolved before a deal.
+Haggle accepts any product type supported by the connected marketplace's inventory. Product-specific
+requirements (brand/model, CPU family and generation, screen size, dimensions, material, color,
+compatibility, warranty and others) become flexible attribute checks. For example, a 13-inch MacBook Air
+with M1 or newer is checked for the Air model, Apple M-series family, minimum chip generation and screen
+class. Existing GPU, RAM and storage checks remain available when relevant.
+
+The model extracts actual values and source quotes; code compares text and numeric requirements.
+Missing or ungrounded facts remain uncertain and are asked about before a deal. Interpretation of
+synonyms and product descriptions still depends on the model; quoted evidence is not independent
+verification of a seller's claim. No matches means no matching inventory, not an unsupported product.
 Seller replies are read before acceptance, including disclosed specifications, extra shipping costs,
 and prepayment. A model decides strategy; code renders outgoing questions, prices and verified leverage.
 The rendered draft is what the user approves. Prices refer to totals including shipping; unresolved

@@ -1,7 +1,7 @@
 {
   "name": "haggle",
-  "version": "1.0.0",
-  "description": "Second-hand buying agent: finds, vets, scam-checks and negotiates with sellers in parallel. You approve every outreach and deal.",
+  "version": "1.1.0",
+  "description": "Any-product second-hand buying agent: finds, vets, scam-checks and negotiates with sellers in parallel. You approve every outreach and deal.",
   "mcpServers": {
     "haggle": {
       "httpUrl": "https://haggle-p61s.onrender.com/mcp/",
