@@ -1091,14 +1091,32 @@
   requestAnimationFrame(autosize);
   if (document.fonts) document.fonts.ready.then(autosize);
 
+  // earlier hunts → sidebar (drawer on small screens)
+  const HIST_LABEL = { awaiting_confirmation: ["Deals ready", "ready"], done: ["Done", "done"], awaiting_approval: ["Pick sellers", "ready"],
+    negotiate: ["Negotiating", "live"], paused: ["Paused", ""], error: ["Needs attention", "err"] };
+  const histBtn = $("#history-btn"), hist = $("#history");
+  const setHist = (open) => { document.body.classList.toggle("hist-open", open); histBtn.setAttribute("aria-expanded", String(open)); };
+  histBtn.addEventListener("click", () => setHist(!document.body.classList.contains("hist-open")));
+  $("#history-close").addEventListener("click", () => setHist(false));
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && document.body.classList.contains("hist-open")) { setHist(false); histBtn.focus(); } });
   api("/api/hunts").then((hunts) => {
     if (!hunts.length || params.get("h")) return;
-    const list = document.createElement("div");
-    list.className = "saved";
-    list.innerHTML = `<p class="saved-h">Earlier hunts</p>${hunts.slice(-10).reverse().map((hunt) =>
-      `<p><a href="?h=${encodeURIComponent(hunt.id)}">${esc(hunt.request)} (${esc(hunt.phase)})</a></p>`).join("")}`;
-    $(".home .hint").after(list);
+    $("#hist-list").innerHTML = hunts.slice(-12).reverse().map((hunt) => {
+      const [lbl, cls] = HIST_LABEL[hunt.phase] || ["Searching", "live"];
+      return `<li><a href="?h=${encodeURIComponent(hunt.id)}" title="${esc(hunt.request)}"><span class="h-req">${esc(clip(hunt.request || "Replay", 70))}</span><span class="h-st ${cls}">${lbl}</span></a></li>`;
+    }).join("");
+    show(hist, true); show(histBtn, true);
+    document.body.classList.add("has-hist");
   }).catch(() => {});
+
+  // example prompts under the box
+  $(".examples").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-ex]");
+    if (!b || E.replay.checked) return;
+    E.request.value = b.dataset.ex;
+    autosize();
+    E.request.focus();
+  });
 
   // deep link from the Gemini app skill: /?q=<complete brief>&go=1 (questions were already asked in chat)
   const deep = params.get("q");
