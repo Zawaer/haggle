@@ -38,6 +38,7 @@ def _hunt(hid):
 
 class Req(BaseModel):
     request: str
+    replay: bool = False
 
 
 class Text(BaseModel):
@@ -54,7 +55,11 @@ class One(BaseModel):
 
 @app.post("/api/hunts")
 async def start(body: Req):
-    h = Hunt(body.request.strip())
+    if body.replay:
+        from .replay import ReplayHunt
+        h = ReplayHunt()
+    else:
+        h = Hunt(body.request.strip())
     _bg(h.run())
     return {"id": h.id}
 
@@ -81,7 +86,7 @@ async def approve(hid: str, body: Ids):
 async def confirm(hid: str, body: One):
     h = _hunt(hid)
     try:
-        await h.confirm(body.id)
+        await h.confirm(body.id)  # replay hunts accept any id
     except ValueError as e:
         raise HTTPException(400, str(e))
     return {"ok": True}

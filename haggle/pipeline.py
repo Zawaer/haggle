@@ -88,9 +88,10 @@ EXTRACT_SCHEMA = {
                            "copy-paste/stock wording, too-good-to-be-true. Empty if none.",
         },
         "language": {"type": "string", "enum": ["sv", "en"]},
+        "is_for_sale": {"type": "boolean", "description": "False for wanted ads (KÖPES / WTB), swap-only ads or service offers."},
     },
     "required": ["category", "gpu", "gpu_is_laptop_variant", "cpu", "ram_gb", "ssd_gb", "hdd_gb",
-                 "storage_type_unclear_gb", "working", "evidence", "contradictions", "risk_signals", "language"],
+                 "storage_type_unclear_gb", "working", "evidence", "contradictions", "risk_signals", "language", "is_for_sale"],
 }
 
 
@@ -118,6 +119,8 @@ def match(listing, specs, req):
     v["type"] = ("pass", specs["category"]) if specs["category"] == want_cat else (
         ("fail", f"{specs['category'].replace('_', ' ')}, not a {want_cat.replace('_', ' ')}"))
 
+    if specs.get("is_for_sale") is False:
+        v["type"] = ("fail", "wanted ad (someone else buying), not for sale")
     if specs.get("working") == "no":
         v["works"] = ("fail", "listed as broken / not working")
 
@@ -146,6 +149,8 @@ def match(listing, specs, req):
                 v["storage"] = ("pass", f"{ssd:g} GB SSD")
             elif ssd < 0 and unclear >= need:
                 v["storage"] = ("uncertain", f"{unclear:g} GB, SSD or HDD not stated")
+            elif ssd < 0 and hdd > 0:
+                v["storage"] = ("uncertain", f"{hdd:g} GB 'hårddisk': SSD or HDD? ask the seller")
             elif ssd < 0 and unclear <= 0:
                 v["storage"] = ("uncertain", "storage not stated")
             else:
@@ -179,7 +184,8 @@ def market_reference(extracted):
 
 SCAM_WORDS = re.compile(
     r"förskott|banköverföring|bank transfer|western union|paypal friends|endast frakt|only shipping|"
-    r"ship only|utomlands|abroad|i'm currently|currently in|whatsapp|gift card|presentkort", re.I)
+    r"ship only|utomlands|abroad|i'm currently|currently in|whatsapp|gift card|presentkort|handpenning|"
+    r"swish i förväg|swisha först|förskottsbetalning|deposit|betala innan|kan ej mötas|cannot meet", re.I)
 
 
 def risk(listing, specs, market):

@@ -201,7 +201,7 @@ class Hunt:
                     out["claims_competing_offer_sek"] = 0
 
             # ---- learned specs can knock a listing out
-            dropped = self._apply_learned(lid, out.get("learned_specs") or {})
+            dropped = await self._apply_learned(lid, out.get("learned_specs") or {})
             price = out["offer_sek"] if out["action"] in ("offer", "accept") else None
             await self._send(lid, "buyer", out["message"], price, out["private_thoughts"], out["action"])
             buyer_msgs += 1
@@ -238,7 +238,7 @@ class Hunt:
                 return
             out = await negotiation.buyer_turn(self.req, l, it["verdicts"], it["thread"], self._verified_facts(lid), self.budget)
 
-    def _apply_learned(self, lid, learned):
+    async def _apply_learned(self, lid, learned):
         """Re-check requirements with specs the seller revealed. Returns a drop reason or None."""
         it = self.items[lid]
         specs = dict(it["specs"])
@@ -253,7 +253,7 @@ class Hunt:
         v = pipeline.match(it["listing"], specs, self.req)
         it["specs"], it["verdicts"] = specs, v
         fails = [f"{k}: {x['reason']}" for k, x in v.items() if x["status"] == "fail" and k not in ("price",)]
-        asyncio.ensure_future(self.emit("listing", id=lid, state=it["state"], verdicts=v, specs=specs))
+        await self.emit("listing", id=lid, state=it["state"], verdicts=v, specs=specs)
         return "; ".join(fails) or None
 
     async def _deal(self, lid, price, logistics):

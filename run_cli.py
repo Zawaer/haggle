@@ -48,6 +48,13 @@ async def main():
             true_min = __import__("haggle.marketplace", fromlist=["get"]).get(it["id"])["hidden"]["min_price_sek"]
             print(f"{it['id']} {it['state']}: {it.get('deal')} reason={it.get('reason')} (hidden min {true_min})")
     print(f"LLM calls: {h.budget.calls}, wall time {h.events[-1]['t']}s")
+    best = next((e["best"] for e in h.events if e["type"] == "handoff"), None)
+    if best and "--confirm" in sys.argv:
+        await h.confirm(best)
+    import json, os
+    os.makedirs("runs", exist_ok=True)
+    json.dump({"request": h.request, "events": h.events}, open("runs/last_events.json", "w"), ensure_ascii=False)
+    print("events saved to runs/last_events.json")
 
 
 asyncio.run(main())

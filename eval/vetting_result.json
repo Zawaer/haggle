@@ -1,0 +1,8 @@
+{
+ "accuracy": 0.9761904761904762,
+ "scams_caught": 5,
+ "scams_total": 5,
+ "false_scam_alarms": 0,
+ "matches_kept": 12,
+ "matches_total": 12
+}
