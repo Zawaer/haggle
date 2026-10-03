@@ -1,7 +1,7 @@
 /* haggle frontend: vanilla JS, no build step.
- * Consumes the hunt event stream (SSE) and renders: pipeline stepper, requirement chips, listing board,
- * approval panel, parallel negotiation panes and the deal handoff. All state is derived from events,
- * so a reconnect (which replays from seq 0) just dedupes by seq.
+ * Consumes the hunt event stream (SSE) and renders: pipeline steps, requirements line, listing ledger,
+ * outbox (approval), parallel negotiation transcripts and the deal receipts. All state is derived from
+ * events, so a reconnect (which replays from seq 0) just dedupes by seq.
  */
 (() => {
   "use strict";
@@ -17,31 +17,35 @@
   const fmtGB = (gb) => (gb >= 1000 ? `${+(gb / 1000).toFixed(1)} TB` : `${gb} GB`);
   const clip = (s, n) => (String(s).length > n ? String(s).slice(0, n - 1).trimEnd() + "…" : String(s));
   const fmtClock = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+  const fmtAge = (d) => (d == null ? "" : d < 14 ? `${d} day${d === 1 ? "" : "s"}` : d < 60 ? `${Math.round(d / 7)} wk` : d < 730 ? `${Math.round(d / 30)} mo` : `${Math.round(d / 365)} yr`);
 
   const params = new URLSearchParams(location.search);
   const PHASE_STEP = { intake: 0, search: 1, extract: 2, vet: 3, rank: 4, draft: 5, awaiting_approval: 5, negotiate: 6, awaiting_confirmation: 7, done: 8 };
   const PHASE_TEXT = {
-    search: "Searching Blocket, Tradera and Facebook Marketplace…",
-    extract: "Reading every listing and extracting specs from messy Swedish & English text…",
-    vet: "Checking each listing against your requirements and scoring scam risk…",
-    rank: "Ranking the survivors…",
-    draft: "Drafting an opening message for each shortlisted seller…",
-    awaiting_approval: "Waiting for your approval: nothing has been sent",
-    negotiate: "Negotiating with sellers in parallel…",
+    search: "Searching Blocket, Tradera and Facebook Marketplace",
+    extract: "Reading every listing, extracting specs from messy Swedish and English text",
+    vet: "Checking each listing against your requirements, scoring scam risk",
+    rank: "Ranking what's left",
+    draft: "Drafting an opening message to each shortlisted seller",
+    awaiting_approval: "Waiting for your approval. Nothing has been sent.",
+    negotiate: "Negotiating with sellers in parallel",
     awaiting_confirmation: "Deals reserved. Pick the one you want.",
     done: "Done.",
   };
-  const VLABEL = { type: "PC", gpu: "GPU", ram: "RAM", storage: "SSD", price: "Price", location: "Location", works: "Works" };
+  const VLABEL = { type: "Type", gpu: "GPU", ram: "RAM", storage: "SSD", price: "Price", location: "Location", works: "Works" };
   const VORDER = ["type", "gpu", "ram", "storage", "price", "location", "works"];
+  const MARKS = ["type", "gpu", "ram", "storage", "price", "location"]; // ledger columns
   const VICON = { pass: "✓", fail: "✗", uncertain: "?" };
   const REJECTED = new Set(["reject"]);
   const LIVE_STATES = new Set(["approved", "negotiating"]);
-  const SRC = (s) => (/blocket/i.test(s) ? ["src-blocket", "Blocket"] : /tradera/i.test(s) ? ["src-tradera", "Tradera"] : ["src-fb", "FB Marketplace"]);
+  const DEAD_STATES = new Set(["walked_away", "dropped", "seller_declined", "no_deal", "released"]);
+  const SRC = (s) => (/blocket/i.test(s) ? ["src-blocket", "Blocket"] : /tradera/i.test(s) ? ["src-tradera", "Tradera"] : ["src-fb", "Facebook"]);
   const STATE_LABEL = {
-    found: "reading…", extracted: "vetting…", matched: "match", uncertain: "needs a question", scam: "scam", error: "error",
-    shortlisted: "shortlisted", approved: "approved", negotiating: "negotiating", deal_offered: "deal reserved",
+    found: "reading…", extracted: "vetting…", matched: "match", uncertain: "unclear, will ask", scam: "scam", error: "error", reject: "rejected",
+    shortlisted: "shortlisted", approved: "approved", negotiating: "negotiating…", deal_offered: "deal reserved",
     seller_declined: "declined", walked_away: "walked away", dropped: "dropped", no_deal: "no deal", confirmed: "confirmed", released: "released",
   };
+  const ACT = { offer: "offers", counter: "counters", accept: "accepts", reply: "", ask: "asks", walk_away: "walks away", decline: "declines", release: "releases" };
 
   // ------------------------------------------------------------------ state
   let S;
@@ -105,6 +109,7 @@
       S.started = true;
       E.echo.textContent = replay ? "Replaying a recorded hunt…" : request;
       document.body.classList.add("running");
+      autosize();
       const p = new URLSearchParams(location.search);
       p.set("h", id);
       history.replaceState(null, "", `?${p}`);
@@ -142,7 +147,6 @@
     if (typeof n !== "number" || n <= S.calls) return; // monotonic (replay confirm reports 0)
     S.calls = n;
     E.callsN.textContent = n;
-    bump(E.calls);
   }
 
   function setPhase(phase, calls) {
@@ -150,13 +154,17 @@
     setCalls(calls);
     const step = PHASE_STEP[phase] ?? 0;
     [...E.stepper.children].forEach((li, i) => {
-      li.classList.toggle("done", i < step || phase === "done");
+      const done = i < step || phase === "done";
+      li.classList.toggle("done", done);
       li.classList.toggle("active", i === step && !phase.startsWith("awaiting") && phase !== "done");
       li.classList.toggle("waiting", i === step && phase.startsWith("awaiting"));
+      $(".n", li).textContent = done ? "✓" : String(i + 1).padStart(2, "0");
     });
+    const cur = E.stepper.children[Math.min(step, 7)];
+    if (cur && E.stepper.scrollWidth > E.stepper.clientWidth) E.stepper.scrollLeft = Math.max(0, cur.offsetLeft - E.stepper.offsetLeft - 40);
     if (phase === "negotiate") {
       const n = Object.values(S.items).filter((it) => it.state === "approved" || it.state === "negotiating").length;
-      setStatus(n ? `Negotiating with ${n} sellers in parallel…` : PHASE_TEXT.negotiate);
+      setStatus(n ? `Negotiating with ${n} sellers in parallel` : PHASE_TEXT.negotiate);
     } else if (PHASE_TEXT[phase]) setStatus(PHASE_TEXT[phase]);
     E.status.classList.toggle("idle", phase.startsWith("awaiting") || phase === "done");
 
@@ -168,7 +176,7 @@
 
   function setStatus(text) {
     show(E.status, true);
-    E.statusText.innerHTML = `<span class="status-text-in">${esc(text)}</span>`;
+    E.statusText.textContent = String(text).replace(/…$/, "");
   }
 
   setInterval(() => {
@@ -190,21 +198,20 @@
 
   function onRequirements(req) {
     S.req = req;
-    const chips = [];
-    if (req.budget_max_sek) chips.push(["Budget", `≤ ${kr(req.budget_max_sek)}`]);
-    if (req.target_price_sek) chips.push(["Target", `~${kr(req.target_price_sek)}`]);
-    if (req.gpu_min) chips.push(["GPU", `${req.gpu_min}+`]);
-    if (req.ram_gb_min) chips.push(["RAM", `${req.ram_gb_min} GB+`]);
-    if (req.storage_gb_min) chips.push(["Storage", `${fmtGB(req.storage_gb_min)}${req.storage_ssd_required ? " SSD" : ""}`]);
-    if (req.city || req.shipping_ok) chips.push(["Where", [req.city, req.shipping_ok ? "shipping" : ""].filter(Boolean).join(" / ")]);
-    if (req.used_ok) chips.push(["Condition", "used OK"]);
-    E.reqChips.innerHTML = chips.map(([k, v], i) => `<span class="req-chip" style="animation-delay:${i * 70}ms"><span class="k">${esc(k)}</span>${esc(v)}</span>`).join("");
+    const parts = [];
+    if (req.budget_max_sek) parts.push(`Budget <b class="mono">≤ ${kr(req.budget_max_sek)}</b>${req.target_price_sek ? ` <span class="muted">(aiming for ~${num(req.target_price_sek)})</span>` : ""}`);
+    if (req.gpu_min) parts.push(`${esc(req.gpu_min)} or better`);
+    if (req.ram_gb_min) parts.push(`${req.ram_gb_min} GB RAM`);
+    if (req.storage_gb_min) parts.push(`${fmtGB(req.storage_gb_min)}${req.storage_ssd_required ? " SSD" : " storage"}`);
+    if (req.city || req.shipping_ok) parts.push([req.city, req.shipping_ok ? "shipping" : ""].filter(Boolean).join(" or "));
+    if (req.used_ok) parts.push("used is fine");
+    E.reqChips.innerHTML = parts.map((p) => `<span class="req">${p}</span>`).join('<span class="sep"> · </span>');
     const qs = req.search_queries || [];
-    E.reqQueries.innerHTML = qs.length ? `<span>Searching for</span>` + qs.map((q, i) => `<span class="q" style="animation-delay:${300 + i * 60}ms">${esc(q)}</span>`).join("") : "";
+    E.reqQueries.innerHTML = qs.length ? `<span class="muted">Searching for </span><span class="mono q">${qs.map(esc).join(", ")}</span>` : "";
     show(E.reqs, true);
   }
 
-  // ------------------------------------------------------------------ listing board
+  // ------------------------------------------------------------------ listing ledger
   function onFound(ev) {
     const it = S.items[ev.id] || (S.items[ev.id] = { id: ev.id, state: "found" });
     it.listing = ev.listing;
@@ -229,6 +236,11 @@
 
   function onShortlist(ids) {
     S.shortlist = ids;
+    E.board.classList.add("has-short");
+    if (!$("#grp-short", E.board)) {
+      E.board.appendChild(h(`<div class="grp" id="grp-short" style="order:-1">Shortlist, ranked</div>`));
+      E.board.appendChild(h(`<div class="grp" id="grp-rest" style="order:99000">Also considered</div>`));
+    }
     ids.forEach((id) => renderCard(id));
     updateCounters();
   }
@@ -258,112 +270,101 @@
     return parts.join(" · ");
   }
 
-  function riskColor(r) { return r >= 60 ? "var(--red)" : r >= 25 ? "var(--amber)" : "var(--green)"; }
+  function riskClass(r) { return r >= 60 ? "r-hi" : r >= 25 ? "r-mid" : "r-lo"; }
 
-  function renderCard(id, prevState) {
+  function renderCard(id) {
     const it = S.items[id];
     if (!it || !it.listing) return;
     const l = it.listing;
-
-    // rejects leave the board and collapse into the "Rejected" group
-    if (REJECTED.has(it.state)) {
-      const card = document.getElementById(`card-${id}`);
-      if (card && !card.classList.contains("leaving")) {
-        card.classList.add("leaving");
-        setTimeout(() => card.remove(), 450);
-      }
-      if (!document.getElementById(`rej-${id}`)) {
-        E.rejList.prepend(h(`<li id="rej-${esc(id)}"><span class="t">${esc(l.title)}</span><span class="p">${kr(l.price_sek)}</span><span class="why">✗ ${esc(mainFail(it))}</span></li>`));
-        show(E.rejected, true);
-        bump(E.rejected);
-      } else {
-        $(".why", document.getElementById(`rej-${id}`)).textContent = `✗ ${mainFail(it)}`;
-      }
-      return;
-    }
+    const rejected = REJECTED.has(it.state);
 
     let card = document.getElementById(`card-${id}`);
     if (!card) {
       const [cls, name] = SRC(l.source);
-      card = h(`<article class="card" id="card-${esc(id)}">
-        <div class="card-top"><span class="src ${cls}">${name}</span><span class="state-tag"></span></div>
-        <div class="card-title" title="${esc(l.title)}">${esc(l.title)}</div>
-        <div class="card-meta"><span class="price">${kr(l.price_sek)}</span><span class="loc">📍 ${esc(l.location)}${l.shipping ? " · ships" : ""}</span></div>
-        <div class="specs hidden"></div>
-        <div class="vchips"></div>
-        <div class="vreason"></div>
-        <ul class="scam-reasons hidden"></ul>
-        <div class="risk hidden"><span>risk</span><span class="risk-bar"><i></i></span><span class="risk-n"></span></div>
-      </article>`);
+      const age = l.seller?.account_age_days;
+      const sub = [esc(l.location), l.shipping ? "ships" : "", age != null ? `seller ${fmtAge(age)}` : ""].filter(Boolean).join(" · ");
+      card = h(`<div class="lrow item" id="card-${esc(id)}">
+        <span class="c-n mono"></span>
+        <span class="c-src ${cls}">${name}</span>
+        <span class="c-title">
+          <span class="t" title="${esc(l.title)}">${esc(l.title)}</span>
+          <span class="sub">${sub}</span>
+          <span class="specs mono hidden"></span>
+          <span class="why"></span>
+          <span class="scam-why hidden"></span>
+        </span>
+        <span class="c-ask mono">${kr(l.price_sek)}</span>
+        <span class="c-marks">${MARKS.map(() => `<i class="mk none">·</i>`).join("")}</span>
+        <span class="c-risk mono"></span>
+        <span class="c-st"></span>
+      </div>`);
       card.addEventListener("click", (e) => {
-        const chip = e.target.closest(".vchip");
-        if (!chip) return;
-        card.querySelectorAll(".vchip.sel").forEach((c) => c !== chip && c.classList.remove("sel"));
-        chip.classList.toggle("sel");
-        $(".vreason", card).textContent = chip.classList.contains("sel") ? chip.dataset.reason : "";
+        const mk = e.target.closest("button.mk");
+        if (!mk) return;
+        card.querySelectorAll("button.mk.sel").forEach((c) => c !== mk && c.classList.remove("sel"));
+        mk.classList.toggle("sel");
+        const cur = S.items[id];
+        $(".why", card).textContent = mk.classList.contains("sel") ? mk.dataset.reason : REJECTED.has(cur.state) ? mainFail(cur) : "";
       });
-      card.style.animationDelay = `${(S.order.indexOf(id) % 8) * 40}ms`;
-      E.board.appendChild(card);
+      card.style.animationDelay = `${(S.order.indexOf(id) % 10) * 25}ms`;
     }
 
-    // state classes
-    card.className = card.className.split(" ").filter((c) => !c.startsWith("st-")).join(" ") + ` st-${it.state}`;
-    if (S.shortlist.includes(id)) card.classList.add("ranked");
-    card.style.order = String(Math.round(cardOrder(it) * 1000));
-    const busy = it.state === "found" || it.state === "extracted";
-    $(".state-tag", card).innerHTML = `${busy ? '<span class="spin"></span>' : ""}${esc(STATE_LABEL[it.state] || it.state)}`;
+    // rejects leave the board and collapse into the "Rejected" group
+    const home = rejected ? E.rejList : E.board;
+    if (card.parentElement !== home) {
+      home.appendChild(card);
+      if (rejected) show(E.rejected, true);
+    }
 
-    // extracted specs
+    card.className = card.className.split(" ").filter((c) => !c.startsWith("st-")).join(" ") + ` st-${it.state}`;
+    const rank = S.shortlist.indexOf(id);
+    card.classList.toggle("ranked", rank >= 0);
+    card.style.order = rejected ? String(S.order.indexOf(id)) : String(Math.round(cardOrder(it) * 1000));
+
+    // number column: rank for the shortlist, otherwise blank
+    $(".c-n", card).innerHTML = rank >= 0 ? `<b>${rank + 1}</b>${it.score != null ? `<small>${Math.round(it.score)}</small>` : ""}` : "";
+
+    // status
+    const st = $(".c-st", card);
+    st.textContent = STATE_LABEL[it.state] || it.state;
+    st.className = `c-st ${it.state === "found" || it.state === "extracted" ? "busy mono" : ""}`;
+    if (it.state === "deal_offered" || it.state === "confirmed") st.innerHTML = `<span class="money">${it.state === "confirmed" ? "confirmed" : "deal"} ${kr(it.deal?.price_sek)}</span>`;
+
     if (it.specs) { const sp = $(".specs", card); sp.innerHTML = specsLine(it.specs); show(sp, true); }
 
-    // verdict chips
+    // verdict marks
     if (it.verdicts) {
-      const vc = $(".vchips", card);
+      const vc = $(".c-marks", card);
       const sig = JSON.stringify(it.verdicts);
       if (vc.dataset.sig !== sig) {
         vc.dataset.sig = sig;
-        vc.innerHTML = VORDER.filter((k) => it.verdicts[k]).map((k, i) => {
+        vc.innerHTML = MARKS.map((k) => {
           const v = it.verdicts[k];
-          return `<button type="button" class="vchip ${esc(v.status)}" style="animation-delay:${i * 45}ms" title="${esc(v.reason)}" data-reason="${esc(`${VLABEL[k]}: ${v.reason}`)}">${VICON[v.status] || "·"} ${VLABEL[k]}</button>`;
+          if (!v) return `<i class="mk none">·</i>`;
+          return `<button type="button" class="mk ${esc(v.status)}" title="${esc(`${VLABEL[k]}: ${v.reason}`)}" data-reason="${esc(`${VLABEL[k]}: ${v.reason}`)}" aria-label="${esc(`${VLABEL[k]} ${v.status}: ${v.reason}`)}">${VICON[v.status] || "·"}</button>`;
         }).join("");
       }
     }
+    const why = $(".why", card);
+    if (rejected && !card.querySelector("button.mk.sel")) why.textContent = mainFail(it);
 
-    // risk meter
+    // risk
     if (typeof it.risk === "number") {
-      const r = $(".risk", card);
-      show(r, true);
-      const bar = $("i", r);
-      requestAnimationFrame(() => { bar.style.width = `${Math.max(3, it.risk)}%`; bar.style.background = riskColor(it.risk); });
-      $(".risk-n", r).textContent = it.risk;
-      $(".risk-n", r).style.color = riskColor(it.risk);
+      $(".c-risk", card).innerHTML = `<span class="rbar ${riskClass(it.risk)}"><i style="width:${Math.max(4, it.risk)}%"></i></span><span class="rn ${riskClass(it.risk)}">${it.risk}</span>`;
     }
 
     // scam stamp + reasons
     if (it.state === "scam") {
-      if (!$(".stamp", card)) card.appendChild(h(`<div class="stamp">SCAM RISK ${esc(it.risk ?? "")}</div>`));
-      const ul = $(".scam-reasons", card);
-      ul.innerHTML = (it.risk_reasons || []).slice(0, 4).map((r) => `<li>${esc(r)}</li>`).join("");
-      show(ul, true);
-    }
-
-    // rank ribbon for shortlisted
-    const rank = S.shortlist.indexOf(id);
-    if (rank >= 0) {
-      let rb = $(".rank", card);
-      if (!rb) {
-        rb = h(`<div class="rank"></div>`);
-        card.classList.add("ranked");
-        card.appendChild(rb);
-        bump(card, "shortlist-in");
-      }
-      rb.textContent = `#${rank + 1}${it.score != null ? ` · ${Math.round(it.score)}` : ""}`;
+      if (!$(".stamp", card)) $(".c-title", card).appendChild(h(`<span class="stamp scam" aria-label="Scam">Scam</span>`));
+      const sw = $(".scam-why", card);
+      sw.textContent = (it.risk_reasons || []).slice(0, 3).join(" · ");
+      show(sw, true);
     }
   }
 
   function updateCounters() {
     const all = Object.values(S.items).filter((it) => it.listing);
-    const set = (el, n) => { if (el.textContent !== String(n)) { el.textContent = n; bump(el.parentElement); } };
+    const set = (el, n) => { if (el.textContent !== String(n)) el.textContent = n; };
     set(E.cFound, all.length);
     const rej = all.filter((it) => REJECTED.has(it.state)).length;
     set(E.cRej, rej);
@@ -372,7 +373,7 @@
     set(E.cShort, S.shortlist.length);
   }
 
-  // ------------------------------------------------------------------ approval
+  // ------------------------------------------------------------------ approval (outbox)
   function onDraft(ev) {
     S.drafts[ev.id] = ev;
     show(E.approval, true);
@@ -380,12 +381,19 @@
     if (S.phase !== "awaiting_approval") E.approveBtn.textContent = "Drafting…";
     const it = S.items[ev.id] || {};
     const l = it.listing || {};
-    let d = document.getElementById(`draft-${ev.id}`);
+    const d = document.getElementById(`draft-${ev.id}`);
+    const offer = ev.offer_sek
+      ? `<span class="muted">Asking ${kr(l.price_sek)}</span> <span class="arr">→</span> opening offer <b class="money">${kr(ev.offer_sek)}</b>`
+      : `<span class="muted">Asking ${kr(l.price_sek)}</span> <span class="arr">→</span> asks a question first`;
     const html = `<label class="draft" id="draft-${esc(ev.id)}">
-      <div class="draft-head"><input type="checkbox" checked data-id="${esc(ev.id)}"><span class="tt">${esc(l.title || ev.id)}</span><span class="ask-p">${l.price_sek ? kr(l.price_sek) : ""}</span></div>
-      <div class="draft-msg">${esc(ev.message)}</div>
-      <div class="draft-foot">${ev.offer_sek ? `<span class="offer-pill">Opening offer ${kr(ev.offer_sek)}</span>` : `<span class="offer-pill ask-q">Asks a question first</span>`}<span class="muted">${esc(SRC(l.source || "")[1])} · ${esc(l.seller?.name || "")}</span></div>
-      ${ev.private_thoughts ? `<p class="thought"><span class="tl">agent's reasoning</span>${esc(ev.private_thoughts)}</p>` : ""}
+      <input type="checkbox" checked data-id="${esc(ev.id)}">
+      <div class="draft-body">
+        <div class="draft-to mono">To <b>${esc(l.seller?.name || "seller")}</b> · ${esc(SRC(l.source || "")[1])}</div>
+        <div class="draft-title">${esc(l.title || ev.id)}</div>
+        <div class="draft-offer mono">${offer}</div>
+        <blockquote class="draft-msg">${esc(ev.message)}</blockquote>
+        ${ev.private_thoughts ? `<p class="thought"><span class="tl">reasoning:</span> ${esc(ev.private_thoughts)}</p>` : ""}
+      </div>
     </label>`;
     if (d) d.replaceWith(h(html)); else E.drafts.appendChild(h(html));
     // keep the shortlist order
@@ -398,7 +406,7 @@
     if (S.phase !== "awaiting_approval") return;
     const n = selectedIds().length;
     E.approveBtn.disabled = n === 0;
-    E.approveBtn.textContent = n ? `Approve & send ${n} message${n > 1 ? "s" : ""}` : "Select at least one seller";
+    E.approveBtn.textContent = n ? `Send ${n} message${n > 1 ? "s" : ""}` : "Select at least one seller";
   }
   E.drafts.addEventListener("change", (e) => {
     const cb = e.target.closest("input[type=checkbox]");
@@ -409,7 +417,7 @@
   function openApproval() {
     show(E.approval, true);
     E.approval.classList.remove("sent");
-    $(".lock-note", E.approval).textContent = "🔒 Nothing has been sent yet";
+    $(".lock-note", E.approval).textContent = "Nothing is sent until you approve.";
     updateApproveBtn();
     scrollToEl(E.approval);
   }
@@ -418,7 +426,7 @@
     if (E.approval.classList.contains("hidden")) return;
     E.approval.classList.add("sent");
     const n = Object.values(S.items).filter((it) => it.state === "approved" || it.state === "negotiating").length || selectedIds().length;
-    $(".lock-note", E.approval).textContent = `✓ Approved: ${n || ""} opening message${n === 1 ? "" : "s"} sent`;
+    $(".lock-note", E.approval).textContent = `✓ Approved by you. ${n || ""} opening message${n === 1 ? "" : "s"} sent.`;
   }
 
   E.approveBtn.addEventListener("click", async () => {
@@ -430,30 +438,31 @@
     catch (e) { showError(`Approve failed: ${e.message}`); updateApproveBtn(); }
   });
 
-  // ------------------------------------------------------------------ negotiation panes
+  // ------------------------------------------------------------------ negotiation transcripts
   function ensurePane(id) {
     if (S.panes[id]) return S.panes[id];
     const it = S.items[id] || { id };
     const l = it.listing || {};
     const [cls, name] = SRC(l.source || "");
-    const el = h(`<div class="pane" id="pane-${esc(id)}">
-      <div class="pane-head">
-        <div class="pane-row"><span class="src ${cls}">${name}</span><span class="badge neg">negotiating</span></div>
-        <div class="pane-title" title="${esc(l.title)}">${esc(l.title || id)}</div>
-        <div class="pane-sub"><span>asking <b class="mono askv">${kr(l.price_sek)}</b></span><span>· ${esc(l.seller?.name || "")}</span></div>
+    const el = h(`<article class="pane" id="pane-${esc(id)}">
+      <header class="pane-head">
+        <div class="pane-meta mono"><span class="${cls}">${name}</span><span>${esc(l.seller?.name || "")}</span></div>
+        <h3 class="pane-title" title="${esc(l.title)}">${esc(l.title || id)}</h3>
+        <div class="pane-ask">Asking <b class="mono askv">${kr(l.price_sek)}</b></div>
         <div class="ticker">
-          <div class="tick-nums"><span class="you">you <b class="tb">–</b></span><span class="them">seller <b class="ts">${kr(l.price_sek)}</b></span></div>
-          <div class="track2"><span class="gap"></span><span class="askmk"></span><span class="cap"></span><span class="mk s"></span><span class="mk b hidden"></span></div>
+          <div class="tick-nums mono"><span class="you">you <b class="tb">–</b></span><span class="them">seller <b class="ts">${kr(l.price_sek)}</b></span></div>
+          <div class="track2"><span class="rail"></span><span class="gap"></span><span class="askmk"></span><span class="cap"></span><span class="mk s"></span><span class="mk b hidden"></span></div>
         </div>
-      </div>
+        <div class="badge neg">negotiating…</div>
+      </header>
       <div class="chat"></div>
-    </div>`);
+    </article>`);
     E.panes.appendChild(el);
     const pane = { el, chat: $(".chat", el), buyer: null, seller: l.price_sek || null, typing: null };
     S.panes[id] = pane;
     show(E.nego, true);
     const n = Object.keys(S.panes).length;
-    E.negoCount.textContent = `· ${n} seller${n > 1 ? "s" : ""} in parallel`;
+    E.negoCount.textContent = `· ${n} seller${n > 1 ? "s" : ""} at once`;
     E.panes.style.setProperty("--n", n);
     if (n === 1) scrollToEl(E.nego);
     updateTicker(id);
@@ -473,7 +482,8 @@
     if (pane.typing) { pane.typing.remove(); pane.typing = null; }
     const st = S.items[id]?.state;
     if (!who || !LIVE_STATES.has(st)) return;
-    pane.typing = h(`<div class="typing ${who === "buyer" ? "buyer-t" : ""}"><i></i><i></i><i></i></div>`);
+    const name = who === "buyer" ? "you" : (S.items[id]?.listing?.seller?.name || "seller");
+    pane.typing = h(`<div class="typing ${who === "buyer" ? "buyer-t" : ""}"><span class="mono">${esc(name)}</span><i></i><i></i><i></i></div>`);
     const stick = nearBottom(pane.chat);
     pane.chat.appendChild(pane.typing);
     if (stick) pane.chat.scrollTop = pane.chat.scrollHeight;
@@ -484,15 +494,18 @@
     const role = ev.role === "seller" ? "seller" : "buyer";
     const rel = ev.action === "release";
     const accept = ev.action === "accept";
-    const who = role === "buyer" ? (rel ? "your agent · release" : "your agent") : esc(S.items[ev.id]?.listing?.seller?.name || "seller");
-    const pill = ev.price_sek ? `<span class="ppill ${accept ? "accept" : ""}">${accept ? "✓ " : ""}${kr(ev.price_sek)}</span>` : "";
-    const act = ev.action && !["offer", "counter", "reply", "release"].includes(ev.action) ? `<span class="act">${esc(ev.action.replace(/_/g, " "))}</span>` : "";
+    const who = role === "buyer" ? (rel ? "you · release" : "you") : esc(S.items[ev.id]?.listing?.seller?.name || "seller");
+    const verb = ACT[ev.action] ?? String(ev.action || "").replace(/_/g, " ");
+    const tag = ev.price_sek
+      ? `<span class="ptag ${accept ? "accept" : ""}">${verb ? `${esc(verb)} ` : ""}<b>${kr(ev.price_sek)}</b></span>`
+      : verb && !rel ? `<span class="ptag act">${esc(verb)}</span>` : "";
+    const checks = (ev.checks && ev.checks.length) ? `<p class="checks mono">${ev.checks.map((c) => `<span>✓ ${esc(c)}</span>`).join('<span class="sep"> · </span>')}</p>` : "";
     const node = h(`<div class="msg ${role} ${rel ? "release" : ""}">
-      <span class="who">${who}</span>
-      <div class="bubble">${esc(ev.text)}</div>
-      ${pill || act ? `<div>${pill}${act}</div>` : ""}
-      ${ev.thoughts ? `<div class="thought"><span class="tl">🧠 ${role}'s private thoughts</span>${esc(ev.thoughts)}</div>` : ""}
-      ${(ev.checks && ev.checks.length) ? `<div class="checks">🛡️ ${ev.checks.map(c => `<span>✓ ${esc(c)}</span>`).join("")}</div>` : ""}
+      <div class="who mono"><span>${who}</span>${typeof ev.t === "number" ? `<span class="tm">${fmtClock(ev.t)}</span>` : ""}</div>
+      <p class="txt">${esc(ev.text)}</p>
+      ${tag ? `<div class="tags">${tag}</div>` : ""}
+      ${checks}
+      ${ev.thoughts ? `<p class="thought"><span class="tl">thinks:</span> ${esc(ev.thoughts)}</p>` : ""}
     </div>`);
     appendChat(pane, node);
     if (ev.price_sek && !rel) {
@@ -504,13 +517,8 @@
 
   function onGuardrail(ev) {
     const pane = ensurePane(ev.id);
-    const meta = {
-      budget_cap: ["Budget cap enforced", ""],
-      false_claim: ["False claim blocked", ""],
-      message_limit: ["Message limit reached", "amber"],
-    }[ev.rule] || [String(ev.rule || "guardrail").replace(/_/g, " "), ""];
-    appendChat(pane, h(`<div class="guard ${meta[1]}"><span class="shield">🛡️</span><div><b>${esc(meta[0])} · enforced in code</b>${esc(ev.detail)}</div></div>`));
-    bump(pane.el, "guard-hit");
+    const name = { budget_cap: "budget cap", false_claim: "false claim blocked", message_limit: "message limit" }[ev.rule] || String(ev.rule || "guardrail").replace(/_/g, " ");
+    appendChat(pane, h(`<div class="rule mono"><b>RULE</b><span>${esc(name)} — ${esc(ev.detail)} <span class="dim">(enforced in code)</span></span></div>`));
   }
 
   function updateTicker(id, flashRole) {
@@ -524,12 +532,13 @@
     if (flashRole) bump(flashRole === "buyer" ? tb : ts, "flash");
     const vals = [ask, cap, pane.buyer, pane.seller].filter((v) => v > 0);
     if (!vals.length) return;
-    const lo = Math.min(...vals) * 0.9, hi = Math.max(...vals) * 1.04;
+    const lo = Math.min(...vals) * 0.92, hi = Math.max(...vals) * 1.04;
     const pos = (v) => `${((v - lo) / (hi - lo)) * 100}%`;
     const tr = $(".track2", pane.el);
     const mb = $(".mk.b", tr), ms = $(".mk.s", tr), gap = $(".gap", tr), capEl = $(".cap", tr), askEl = $(".askmk", tr);
-    if (cap) { capEl.style.left = pos(cap); capEl.dataset.l = `max ${num(cap)}`; } else capEl.remove();
+    if (cap && capEl) { capEl.style.left = pos(cap); capEl.dataset.l = `max ${num(cap)}`; } else if (capEl) capEl.remove();
     askEl.style.left = pos(ask);
+    askEl.dataset.l = `ask`;
     if (pane.seller) ms.style.left = pos(pane.seller);
     if (pane.buyer) { show(mb, true); mb.style.left = pos(pane.buyer); }
     if (pane.buyer && pane.seller) {
@@ -545,29 +554,30 @@
     const st = it.state;
     const set = (cls, txt) => { badge.className = `badge ${cls}`; badge.textContent = txt; };
     pane.el.classList.toggle("is-deal", st === "deal_offered" || st === "confirmed");
-    pane.el.classList.toggle("is-dead", ["walked_away", "dropped", "seller_declined", "no_deal", "released"].includes(st));
-    if (st === "approved" || st === "negotiating") set("neg", "negotiating");
+    pane.el.classList.toggle("is-dead", DEAD_STATES.has(st));
+    const why = it.reason ? ` — ${clip(it.reason, 90)}` : "";
+    if (st === "approved" || st === "negotiating") set("neg", "negotiating…");
     else if (st === "deal_offered") set("b-deal", `DEAL ${kr(it.deal?.price_sek)}`);
-    else if (st === "confirmed") set("gold", `★ CONFIRMED ${kr(it.deal?.price_sek)}`);
-    else if (st === "walked_away") set("bad", "walked away");
-    else if (st === "dropped") set("bad", "dropped");
-    else if (st === "seller_declined") set("bad", "declined");
-    else if (st === "no_deal") set("meh", "no deal");
-    else if (st === "released") set("meh", "released");
+    else if (st === "confirmed") set("b-deal", `CONFIRMED ${kr(it.deal?.price_sek)}`);
+    else if (st === "walked_away") set("bad", `walked away${why}`);
+    else if (st === "dropped") set("bad", `dropped${why}`);
+    else if (st === "seller_declined") set("bad", "seller declined");
+    else if (st === "no_deal") set("bad", `no deal${why}`);
+    else if (st === "released") set("bad", "released politely");
 
     if (st !== prev) {
       const sys = {
-        deal_offered: () => ["good", `🤝 Deal at ${kr(it.deal?.price_sek)} · reserved pending your confirmation`],
-        confirmed: () => ["good", "★ You confirmed this deal"],
-        walked_away: () => ["bad", `Walked away${it.reason ? `: ${clip(it.reason, 130)}` : ""}`],
-        dropped: () => ["bad", `Dropped${it.reason ? `: ${it.reason}` : ""}`],
-        seller_declined: () => ["bad", "Seller declined"],
-        no_deal: () => ["bad", `No deal${it.reason ? `: ${it.reason}` : ""}`],
+        deal_offered: () => ["deal", `Deal at ${kr(it.deal?.price_sek)}, reserved until you confirm`],
+        confirmed: () => ["deal", "You confirmed this deal"],
+        walked_away: () => ["", "Your agent walked away"],
+        dropped: () => ["", "Dropped"],
+        seller_declined: () => ["", "Seller declined"],
+        no_deal: () => ["", "No deal"],
         released: () => ["", "Seller released politely"],
       }[st];
       if (sys) {
         const [cls, txt] = sys();
-        appendChat(pane, h(`<div class="sys ${cls}">${esc(txt)}</div>`));
+        appendChat(pane, h(`<div class="sys ${cls}"><span>${esc(txt)}</span></div>`));
       }
       if (!LIVE_STATES.has(st)) setTyping(id, null);
       if (st === "deal_offered" && it.deal?.price_sek) { pane.buyer = pane.seller = it.deal.price_sek; updateTicker(id); }
@@ -576,7 +586,7 @@
 
   E.thoughts.addEventListener("change", () => document.body.classList.toggle("hide-thoughts", !E.thoughts.checked));
 
-  // ------------------------------------------------------------------ handoff
+  // ------------------------------------------------------------------ handoff (receipts)
   function onHandoff(ev) {
     S.handoff = ev;
     setCalls(ev.calls);
@@ -596,41 +606,41 @@
     const focus = confirmed || S.items[best];
     const saved = focus?.deal?.saved_sek || 0;
     const pct = focus?.deal?.asking_sek ? Math.round((saved / focus.deal.asking_sek) * 100) : 0;
+    const scams = all.filter((x) => x.state === "scam").length;
+    const facts = [`${all.length} listings read`, `${scams} scam${scams === 1 ? "" : "s"} avoided`, `${nego} seller${nego === 1 ? "" : "s"}, in parallel`, `${S.calls} Gemini calls`, `${Math.round(S.t)} s`]
+      .map((f) => `<span>${f}</span>`).join(" · ");
 
     if (!ids.length) {
-      E.savings.innerHTML = `<div><div class="big" style="color:var(--amber)">No deal yet</div><div class="lbl">None of the sellers agreed within your limits. Your agent didn't overpay.</div></div>`;
+      E.savings.innerHTML = `<p class="save-big"><span class="amt none">No deal yet.</span></p><p class="save-note">None of the sellers agreed within your limits, so your agent didn't overpay.</p><p class="save-facts mono">${facts}</p>`;
     } else {
-      E.savings.innerHTML = `<div><div class="big">${kr(saved)}</div><div class="lbl">${confirmed ? `You saved ${pct}% vs the asking price` : `saved vs asking on the recommended deal (${pct}%)`}</div></div>
-        <div class="stats">
-          <div class="stat"><b>${all.length}</b><span>listings read</span></div>
-          <div class="stat"><b>${all.filter((x) => x.state === "scam").length}</b><span>scams caught</span></div>
-          <div class="stat"><b>${nego}</b><span>sellers haggled</span></div>
-          <div class="stat"><b>${S.calls}</b><span>Gemini calls</span></div>
-          <div class="stat"><b>${fmtClock(S.t)}</b><span>start to deal</span></div>
-        </div>`;
+      E.savings.innerHTML = `<p class="save-big"><span class="lbl">${confirmed ? "You saved" : "Saves you"}</span> <span class="amt">${kr(saved)}</span> <span class="pct mono">${pct}% under asking</span></p>
+        <p class="save-facts mono">${facts}</p>
+        ${confirmed ? `<p class="save-note">Confirmed: <b>${esc(confirmed.listing.title)}</b> for <span class="money mono">${kr(confirmed.deal?.price_sek)}</span>. ${confirmed.deal?.logistics ? `Handover: ${esc(confirmed.deal.logistics)}. ` : ""}${released ? `Your agent politely released the other ${released} seller${released > 1 ? "s" : ""}.` : ""}</p>` : `<p class="save-note">Nothing is bought until you confirm one. The others are released politely.</p>`}`;
     }
-    E.handoffTitle.textContent = confirmed ? "Done" : ids.length ? `${ids.length} deal${ids.length > 1 ? "s" : ""} reserved: pick one` : "Your deals";
+    E.handoffTitle.textContent = confirmed ? "Done" : ids.length ? `${ids.length} deal${ids.length > 1 ? "s" : ""} reserved. Pick one.` : "Your deals";
 
     const sorted = [...ids].sort((a, b) => (a === best ? -1 : b === best ? 1 : 0));
     E.deals.innerHTML = "";
-    if (confirmed) {
-      const others = released ? `Your agent politely released the other ${released} seller${released > 1 ? "s" : ""}.` : "";
-      E.deals.appendChild(h(`<div class="success"><div class="ok">🎉</div><h3>Deal confirmed: ${esc(confirmed.listing.title)} for ${kr(confirmed.deal?.price_sek)}</h3><p>${esc(confirmed.deal?.logistics ? `Logistics: ${confirmed.deal.logistics}. ` : "")}${others}</p></div>`));
-    }
     sorted.forEach((id, i) => {
       const it = S.items[id];
       if (!it?.listing) return;
       const d = it.deal || {};
       const isBest = id === best;
       const chosen = confirmed && confirmed.id === id;
-      const card = h(`<div class="deal ${isBest && !confirmed ? "best" : ""} ${chosen ? "chosen" : ""} ${confirmed && !chosen ? "faded" : ""}" style="animation-delay:${i * 90}ms">
-        ${isBest && !confirmed ? `<span class="ribbon">★ Recommended</span>` : ""}
-        <div class="tt">${esc(it.listing.title)}</div>
-        <div class="specs">${specsLine(it.specs)}</div>
-        <div class="prices"><span class="final">${kr(d.price_sek)}</span><span class="was">${kr(d.asking_sek || it.listing.price_sek)}</span></div>
-        <div class="saved">saved ${kr(d.saved_sek || 0)}</div>
-        <div class="logi">📍 ${esc(d.logistics || it.listing.location)} · ${esc(SRC(it.listing.source)[1])} · ${esc(it.listing.seller?.name || "")}</div>
-        ${chosen ? `<span class="done-badge">✓ Confirmed</span>` : confirmed ? `<span class="released">${it.state === "released" ? "Released politely" : ""}</span>` : `<button class="btn ${isBest ? "btn-primary" : ""}" data-confirm="${esc(id)}">Confirm this one</button>`}
+      const ask = d.asking_sek || it.listing.price_sek;
+      const card = h(`<div class="receipt ${isBest && !confirmed ? "best" : ""} ${chosen ? "chosen" : ""} ${confirmed && !chosen ? "faded" : ""}" style="animation-delay:${i * 60}ms">
+        <div class="r-top mono"><span>${isBest ? "Recommended" : `Deal ${i + 1}`}</span><span>${esc(SRC(it.listing.source)[1])} · ${esc(id)}</span></div>
+        <h3 class="r-title">${esc(it.listing.title)}</h3>
+        <div class="r-specs mono">${specsLine(it.specs)}</div>
+        <div class="r-rule"></div>
+        <div class="r-line mono"><span>Asking</span><span>${kr(ask)}</span></div>
+        <div class="r-line mono r-agreed"><span>Agreed</span><span>${kr(d.price_sek)}</span></div>
+        <div class="r-rule"></div>
+        <div class="r-line mono r-save"><span>You save</span><span>${kr(d.saved_sek || 0)}</span></div>
+        <div class="r-rule"></div>
+        <div class="r-line mono small"><span>Seller</span><span>${esc(it.listing.seller?.name || "")}</span></div>
+        <div class="r-line mono small"><span>Handover</span><span>${esc(d.logistics || it.listing.location)}</span></div>
+        <div class="r-act">${chosen ? `<span class="stamp ok">Confirmed</span>` : confirmed ? `<span class="released">${it.state === "released" ? "Released politely" : ""}</span>` : `<button class="btn ${isBest ? "btn-ink" : "btn-line"}" data-confirm="${esc(id)}">Confirm this one</button>`}</div>
       </div>`);
       E.deals.appendChild(card);
     });
@@ -641,45 +651,31 @@
     if (!b || !S.id) return;
     E.deals.querySelectorAll("[data-confirm]").forEach((x) => (x.disabled = true));
     b.textContent = "Confirming…";
-    try { await api(`/api/hunts/${S.id}/confirm`, { id: b.dataset.confirm }); confetti(); }
+    try { await api(`/api/hunts/${S.id}/confirm`, { id: b.dataset.confirm }); }
     catch (err) { showError(`Confirm failed: ${err.message}`); E.deals.querySelectorAll("[data-confirm]").forEach((x) => (x.disabled = false)); }
   });
 
-  function confetti() {
-    const box = h(`<div class="confetti"></div>`);
-    const colors = ["#22c55e", "#7c5cff", "#22d3ee", "#f59e0b", "#f43f5e", "#fff"];
-    for (let i = 0; i < 90; i++) {
-      const p = document.createElement("i");
-      p.style.left = `${Math.random() * 100}%`;
-      p.style.background = colors[i % colors.length];
-      p.style.animationDuration = `${1.8 + Math.random() * 1.8}s`;
-      p.style.animationDelay = `${Math.random() * 0.4}s`;
-      p.style.transform = `rotate(${Math.random() * 360}deg)`;
-      box.appendChild(p);
-    }
-    document.body.appendChild(box);
-    setTimeout(() => box.remove(), 4200);
-  }
-
   // ------------------------------------------------------------------ misc
   function showError(msg) {
-    E.error.textContent = `⚠ ${msg}`;
+    E.error.textContent = msg;
     show(E.error, true);
   }
 
   let scrollTimer = null;
   function scrollToEl(el) {
     clearTimeout(scrollTimer);
-    scrollTimer = setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "start" }), 250);
+    const smooth = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    scrollTimer = setTimeout(() => el.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "start" }), 250);
   }
 
   function resetUI() {
     if (es) es.close();
     reset();
-    E.board.innerHTML = ""; E.rejList.innerHTML = ""; E.drafts.innerHTML = ""; E.panes.innerHTML = ""; E.deals.innerHTML = "";
+    E.board.innerHTML = ""; E.board.classList.remove("has-short"); E.rejList.innerHTML = ""; E.drafts.innerHTML = ""; E.panes.innerHTML = ""; E.deals.innerHTML = ""; E.savings.innerHTML = "";
     E.reqChips.innerHTML = ""; E.reqQueries.innerHTML = ""; E.callsN.textContent = "0";
     [E.question, E.reqs, E.boardSec, E.rejected, E.approval, E.nego, E.handoff, E.error].forEach((el) => show(el, false));
     E.approval.classList.remove("sent");
+    E.rejected.open = false;
     updateCounters();
   }
 
@@ -689,7 +685,7 @@
     e.preventDefault();
     const text = E.answer.value.trim();
     if (!text || !S.id) return;
-    try { await api(`/api/hunts/${S.id}/answer`, { text }); show(E.question, false); setStatus("Thanks, continuing…"); }
+    try { await api(`/api/hunts/${S.id}/answer`, { text }); show(E.question, false); setStatus("Thanks, continuing"); }
     catch (err) { showError(`Couldn't send the answer: ${err.message}`); }
   });
 
@@ -707,11 +703,12 @@
     history.replaceState(null, "", p.toString() ? `?${p}` : location.pathname);
   });
   syncReplay();
-  const autosize = () => { E.request.style.height = "auto"; E.request.style.height = `${E.request.scrollHeight}px`; };
+  function autosize() { E.request.style.height = "auto"; E.request.style.height = `${E.request.scrollHeight}px`; }
   E.request.addEventListener("input", autosize);
   E.replay.addEventListener("change", autosize);
   window.addEventListener("resize", autosize);
   requestAnimationFrame(autosize);
+  if (document.fonts) document.fonts.ready.then(autosize);
 
   // resume a hunt after a page reload (?h=<id>)
   const resume = params.get("h");
@@ -720,6 +717,7 @@
       S.started = true;
       document.body.classList.add("running");
       E.echo.textContent = snap?.request || "Replaying a recorded hunt…";
+      if (snap?.request && !E.replay.checked) { E.request.value = snap.request; autosize(); }
       connect(resume);
     }).catch(() => {
       params.delete("h");

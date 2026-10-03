@@ -3,119 +3,127 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0b0d12">
-<title>haggle: your agent finds it, vets it, and haggles for it</title>
+<meta name="theme-color" content="#F3F0E8">
+<title>haggle: your agent finds it, vets it and haggles for it</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:ital,wght@1,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/static/style.css">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤝</text></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%23F3F0E8'/><text x='14' y='78' font-family='Helvetica,Arial' font-weight='800' font-size='84' fill='%23151515'>h</text><rect x='70' y='64' width='14' height='14' fill='%23E5482B'/></svg>">
 </head>
 <body>
-<div class="bg-glow" aria-hidden="true"></div>
 
-<header id="hero" class="hero">
-  <div class="topbar">
-    <a class="logo" href="/" title="New hunt"><span class="logo-mark">h</span>haggle</a>
-    <div class="top-meta">
-      <span id="clock" class="chip chip-ghost mono hidden">0:00</span>
-      <span id="calls" class="chip chip-calls"><span class="spark">✦</span><b id="calls-n" class="mono">0</b> Gemini calls</span>
+<header id="hero" class="mast">
+  <div class="mast-top">
+    <a class="wordmark" href="/" title="New hunt">haggle<span class="dot">.</span></a>
+    <p class="tagline">Your agent finds it, vets it and haggles for it.</p>
+    <div class="meter mono">
+      <span id="calls" class="calls"><b id="calls-n">0</b> Gemini calls</span><span id="clock" class="clock hidden">0:00</span>
     </div>
   </div>
 
-  <div class="hero-body">
-    <h1 class="tagline">Your agent <em>finds</em> it, <em>vets</em> it, and <em>haggles</em> for it.</h1>
-    <form id="hunt-form" class="ask" autocomplete="off">
-      <textarea id="request" rows="2" spellcheck="false">I want a gaming PC under 8,000 SEK, RTX 3060+, 16 GB RAM, 1 TB SSD, Stockholm</textarea>
-      <button id="hunt-btn" type="submit" class="btn btn-primary btn-hunt"><span>Hunt</span><span class="arrow">→</span></button>
-    </form>
-    <p id="request-echo" class="request-echo hidden"></p>
-    <p class="hint" id="hint">Searches Blocket, Tradera &amp; Facebook Marketplace · nothing is sent to a seller without your approval</p>
-  </div>
+  <form id="hunt-form" class="ask" autocomplete="off">
+    <label class="ask-lbl" for="request">What are you looking for?</label>
+    <div class="ask-row">
+      <textarea id="request" rows="1" spellcheck="false">I want a gaming PC under 8,000 SEK, RTX 3060+, 16 GB RAM, 1 TB SSD, Stockholm</textarea>
+      <button id="hunt-btn" type="submit" class="btn btn-ink btn-hunt">Hunt <span aria-hidden="true">→</span></button>
+    </div>
+  </form>
+  <p id="request-echo" class="hidden"></p>
+  <p class="hint" id="hint">Searches Blocket, Tradera and Facebook Marketplace. Nothing is sent to a seller without your approval.</p>
 
-  <ol id="stepper" class="stepper" aria-label="Pipeline">
-    <li data-step="0"><span class="dot"></span><span class="lbl">Understand</span></li>
-    <li data-step="1"><span class="dot"></span><span class="lbl">Search</span></li>
-    <li data-step="2"><span class="dot"></span><span class="lbl">Read listings</span></li>
-    <li data-step="3"><span class="dot"></span><span class="lbl">Vet</span></li>
-    <li data-step="4"><span class="dot"></span><span class="lbl">Rank</span></li>
-    <li data-step="5"><span class="dot"></span><span class="lbl">Draft</span></li>
-    <li data-step="6"><span class="dot"></span><span class="lbl">Negotiate</span></li>
-    <li data-step="7"><span class="dot"></span><span class="lbl">Deal</span></li>
-  </ol>
-  <div id="status" class="status hidden"><span class="pulse-dot"></span><span id="status-text"></span></div>
+  <div class="progress">
+    <ol id="stepper" class="steps" aria-label="Pipeline">
+      <li data-step="0"><span class="n">01</span>Understand</li>
+      <li data-step="1"><span class="n">02</span>Search</li>
+      <li data-step="2"><span class="n">03</span>Read</li>
+      <li data-step="3"><span class="n">04</span>Vet</li>
+      <li data-step="4"><span class="n">05</span>Rank</li>
+      <li data-step="5"><span class="n">06</span>Draft</li>
+      <li data-step="6"><span class="n">07</span>Negotiate</li>
+      <li data-step="7"><span class="n">08</span>Deal</li>
+    </ol>
+    <div id="status" class="status mono hidden"><span class="sq" aria-hidden="true"></span><span id="status-text"></span></div>
+  </div>
 </header>
 
 <main id="main">
-  <section id="question" class="panel question hidden">
-    <div class="panel-kicker">Your agent has one question</div>
+  <section id="question" class="sec question hidden">
+    <div class="sec-head"><h2>One question first</h2></div>
     <p id="question-text" class="question-text"></p>
     <form id="answer-form" class="ask ask-sm">
-      <input id="answer" type="text" placeholder="Type your answer…">
-      <button class="btn btn-primary" type="submit">Answer</button>
+      <div class="ask-row">
+        <input id="answer" type="text" placeholder="Type your answer">
+        <button class="btn btn-ink" type="submit">Answer</button>
+      </div>
     </form>
   </section>
 
-  <section id="reqs" class="reqs hidden">
-    <div class="section-head"><h2>What you asked for</h2></div>
-    <div id="req-chips" class="req-chips"></div>
-    <div id="req-queries" class="req-queries"></div>
+  <section id="reqs" class="sec reqs hidden">
+    <div class="sec-head"><h2>Understood as</h2></div>
+    <p id="req-chips" class="req-line"></p>
+    <p id="req-queries" class="req-queries"></p>
   </section>
 
-  <section id="board-sec" class="hidden">
-    <div class="section-head">
+  <section id="board-sec" class="sec hidden">
+    <div class="sec-head">
       <h2>Listings</h2>
-      <div class="counters">
-        <span class="counter"><b id="c-found" class="mono">0</b> found</span>
-        <span class="counter c-rej"><b id="c-rej" class="mono">0</b> rejected</span>
-        <span class="counter c-scam"><b id="c-scam" class="mono">0</b> scams flagged</span>
-        <span class="counter c-short"><b id="c-short" class="mono">0</b> shortlisted</span>
-      </div>
+      <p class="counters mono">
+        <span><b id="c-found">0</b> read</span><span class="sep">·</span><span><b id="c-rej">0</b> rejected</span><span class="sep">·</span><span class="c-scam"><b id="c-scam">0</b> scams</span><span class="sep">·</span><span class="c-short"><b id="c-short">0</b> shortlisted</span>
+      </p>
     </div>
-    <div id="board" class="board"></div>
+    <div class="ledger">
+      <div class="lrow lhead" aria-hidden="true">
+        <span class="c-n">#</span><span class="c-src">Source</span><span class="c-title">Listing</span><span class="c-ask">Asking</span>
+        <span class="c-marks"><i>Type</i><i>GPU</i><i>RAM</i><i>SSD</i><i>Price</i><i>Loc</i></span>
+        <span class="c-risk">Risk</span><span class="c-st">Status</span>
+      </div>
+      <div id="board" class="board"></div>
+    </div>
     <details id="rejected" class="rejected hidden">
-      <summary><span class="rej-x">✕</span><span>Rejected (<span id="rej-n">0</span>)</span><span class="muted">· failed a hard requirement</span></summary>
-      <ul id="rej-list" class="rej-list"></ul>
+      <summary>Rejected (<span id="rej-n">0</span>) <span class="rej-show">show</span><span class="rej-hide">hide</span><span class="muted"> · failed a hard requirement</span></summary>
+      <div id="rej-list" class="rej-list"></div>
     </details>
   </section>
 
-  <section id="approval" class="panel approval hidden">
-    <div class="section-head">
-      <h2>Approve outreach</h2>
-      <span class="lock-note">🔒 Nothing has been sent yet</span>
+  <section id="approval" class="sec approval hidden">
+    <div class="sec-head">
+      <h2>Outbox</h2>
+      <p class="lock-note">Nothing is sent until you approve.</p>
     </div>
-    <p class="muted approval-sub">Your agent drafted an opening message for each shortlisted seller. Untick any you don't want contacted.</p>
+    <p class="approval-sub">Your agent drafted an opening message to each shortlisted seller. Untick anyone you don't want contacted.</p>
     <div id="drafts" class="drafts"></div>
     <div class="approval-actions">
-      <button id="approve-btn" class="btn btn-primary btn-big">Approve &amp; send</button>
+      <button id="approve-btn" class="btn btn-ink btn-big">Send messages</button>
+      <span class="muted small">Prices and claims are checked in code before anything goes out.</span>
     </div>
   </section>
 
-  <section id="nego" class="hidden">
-    <div class="section-head">
+  <section id="nego" class="sec hidden">
+    <div class="sec-head">
       <h2>Negotiating <span id="nego-count" class="muted"></span></h2>
-      <label class="switch" title="Show each side's private reasoning (the other side never sees it)">
+      <label class="switch" title="Each side's private reasoning; the other side never sees it">
         <input id="thoughts-toggle" type="checkbox" checked>
-        <span class="track"><span class="knob"></span></span>
-        <span>🧠 Private thoughts</span>
+        <span class="track" aria-hidden="true"><span class="knob"></span></span>
+        <span>Show private thoughts</span>
       </label>
     </div>
-    <p class="muted nego-sub">All sellers in parallel. Budget cap, honesty and message limits are enforced in code, not prompts.</p>
+    <p class="nego-sub">One transcript per seller, all running at once. Budget cap, honesty and message limits are enforced in code, not in the prompt.</p>
     <div id="panes" class="panes"></div>
   </section>
 
-  <section id="handoff" class="hidden">
+  <section id="handoff" class="sec hidden">
+    <div class="sec-head"><h2 id="handoff-title">Your deals</h2></div>
     <div id="savings" class="savings"></div>
-    <div class="section-head"><h2 id="handoff-title">Your deals</h2></div>
     <div id="deals" class="deals"></div>
   </section>
 
-  <section id="error" class="panel error hidden"></section>
+  <section id="error" class="sec error hidden"></section>
 </main>
 
 <footer class="foot">
-  <span>haggle · hackathon build</span>
-  <label class="replay-toggle" title="Replays a recorded real run: no API calls"><input id="replay" type="checkbox"> replay demo</label>
+  <span>haggle · hackathon build · Stockholm</span>
+  <label class="replay-toggle" title="Replays a recorded real run: no API calls"><input id="replay" type="checkbox"> replay</label>
 </footer>
 
 <script src="/static/app.js"></script>
