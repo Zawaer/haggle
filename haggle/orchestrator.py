@@ -332,7 +332,10 @@ class Hunt:
         it = self.items[lid]
         for attempt in range(2):
             try:
-                return guardrails.render(out, self.req, it["listing"], it["verdicts"], lambda p: self._claim_ok(lid, p))
+                done = guardrails.render(out, self.req, it["listing"], it["verdicts"], lambda p: self._claim_ok(lid, p))
+                if done.get("wording_rejected"):
+                    await self._guard(lid, "message_replaced", f"Agent's wording replaced by the safe template: {done['wording_rejected']}")
+                return done
             except ValueError as e:
                 await self._guard(lid, "proposal_blocked", str(e))
                 if not attempt:
@@ -408,7 +411,8 @@ class Hunt:
                 out = guardrails.render({"action": "ask"}, self.req, l, it["verdicts"], lambda p: False)
             price = out["offer_sek"] if out["action"] in ("offer", "accept") else None
             sent = await self._deliver(lid, out["message"], price, out["action"], out["private_thoughts"],
-                                       ["validated proposal", f"message {buyer_msgs + 1}/{config.MAX_MESSAGES_PER_SELLER}"])
+                                       ["validated proposal", "wording checked" if out.get("wording") == "checked" else "safe template",
+                                        f"message {buyer_msgs + 1}/{config.MAX_MESSAGES_PER_SELLER}"])
             if sent is None:
                 return
             buyer_msgs += 1
