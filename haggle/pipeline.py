@@ -48,7 +48,8 @@ INTAKE_SCHEMA = {
                            "actually write titles (e.g. 'speldator rtx 3060', 'gaming pc 3060', 'stationär dator 16gb').",
         },
         "unsupported_requirements": {"type": "array", "items": {"type": "string"},
-            "description": "List every hard constraint this schema cannot represent (e.g. CPU model, brand, screen size, warranty). Never silently drop constraints. Empty if all are represented."},
+            "description": "List every hard constraint this schema cannot represent (e.g. CPU model, brand, screen size, warranty). Never silently drop constraints. Empty if all are represented. "
+                           "Use cases are NOT unsupported: translate them into specs instead (see the system prompt)."},
         "clarifying_question": {
             "type": "string",
             "description": "Ask ONE question only if something essential is truly ambiguous (e.g. 'good for gaming' "
@@ -130,7 +131,11 @@ async def intake(request, budget, answer=None, clarified=False):
         prompt, INTAKE_SCHEMA, budget=budget,
         system="You turn a shopper's request for a second-hand purchase in Sweden into structured requirements. "
                "Anything you say to the user (summary, clarifying question) must be in the language the user wrote in; "
-               "only the search queries mix Swedish and English.",
+               "only the search queries mix Swedish and English. "
+               "Translate use cases into concrete minimum specs yourself, never into unsupported_requirements: "
+               "named games or 'gaming' -> a GPU class and RAM (unreleased or very demanding games such as GTA 6 -> "
+               "RTX 3060 or equivalent, 16 GB RAM, SSD; esports/older games -> GTX 1660 class, 16 GB RAM); "
+               "video editing/3D -> RTX 3060+, 32 GB RAM; office/school -> no GPU minimum, 8 GB RAM, SSD.",
     )
 
     if clarified:
