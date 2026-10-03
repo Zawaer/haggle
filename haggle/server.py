@@ -13,13 +13,14 @@ import json
 import logging
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from . import limits
 from .config import ROOT
-from .orchestrator import HUNTS, Hunt
+from . import auth, inbox
+from .orchestrator import HUNTS, Hunt, restore_hunts
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
 from .mcp_server import http_app as _mcp_http_app, mcp as _mcp
@@ -29,8 +30,26 @@ _mcp_app = _mcp_http_app()
 
 @contextlib.asynccontextmanager
 async def _lifespan(app):
+    auth.users()  # validate credentials before accepting traffic
+    await restore_hunts()
     async with _mcp.session_manager.run():
-        yield
+        try:
+            yield
+        finally:
+            for h in list(HUNTS.values()):
+                h.persist()
+                h.suspending = True
+            from .mcp_server import _tasks as mcp_tasks
+            pending = list(_tasks) + list(mcp_tasks)
+            for h in HUNTS.values():
+                pending += [*h.tasks.values(), h.watch_task]
+            pending = [t for t in pending if t and not t.done()]
+            for t in pending:
+                t.cancel()
+            await asyncio.gather(*pending, return_exceptions=True)
+            for h in HUNTS.values():
+                if h.market:
+                    await h.market.http.aclose()
 
 
 app = FastAPI(title="haggle", lifespan=_lifespan)
@@ -41,57 +60,117 @@ _tasks = set()
 def _bg(coro):
     t = asyncio.create_task(coro)
     _tasks.add(t)
-    t.add_done_callback(_tasks.discard)
+    def finished(task):
+        _tasks.discard(task)
+        if not task.cancelled() and task.exception():
+            logging.error("Background operation failed: %s", task.exception())
+    t.add_done_callback(finished)
 
 
-def _hunt(hid):
-    if hid not in HUNTS:
+def _hunt(hid, request):
+    if hid not in HUNTS or HUNTS[hid].owner != request.state.owner:
         raise HTTPException(404, "no such hunt")
     return HUNTS[hid]
 
 
+@app.middleware("http")
+async def access_control(request: Request, call_next):
+    path = request.url.path
+    # Reject cross-origin writes, including cookie-authenticated MCP calls.
+    origin = request.headers.get("origin")
+    if request.method not in ("GET", "HEAD", "OPTIONS") and origin and origin.rstrip("/") != str(request.base_url).rstrip("/"):
+        return JSONResponse({"detail": "cross-origin writes are not allowed"}, status_code=403)
+    if path == "/healthz" or path == "/login" or path.startswith("/static/") or path == "/api/login":
+        return await call_next(request)
+    owner = auth.identity(request)
+    if not owner:
+        if path in ("/", "/inbox"):
+            return RedirectResponse("/login", status_code=303)
+        return JSONResponse({"detail": "sign in or provide a bearer token"}, status_code=401)
+    request.state.owner = owner
+    return await call_next(request)
+
+
+class Login(BaseModel):
+    token: str = Field(min_length=1, max_length=1000)
+
+
+@app.post("/api/login")
+async def login(body: Login, request: Request):
+    owner = auth.authenticate(body.token)
+    if not owner:
+        raise HTTPException(401, "invalid access token")
+    response = JSONResponse({"ok": True})
+    response.set_cookie("haggle_session", auth.session(owner), httponly=True, samesite="strict",
+                        secure=request.url.scheme == "https", max_age=86400)
+    return response
+
+
+@app.get("/login")
+async def login_page():
+    return FileResponse(ROOT / "web" / "login.html")
+
+
+@app.post("/api/logout")
+async def logout():
+    response = JSONResponse({"ok": True})
+    response.delete_cookie("haggle_session")
+    return response
+
+
+@app.get("/api/hunts")
+async def hunts(request: Request):
+    return [{"id": h.id, "request": h.request, "phase": h.phase} for h in HUNTS.values() if h.owner == request.state.owner]
+
+
+@app.post("/api/hunts/{hid}/resume")
+async def resume(hid: str, request: Request):
+    h = _hunt(hid, request)
+    if h.phase not in ("paused", "error") or h.closed:
+        raise HTTPException(400, "hunt is not recoverable")
+    _bg(h.recover())
+    return {"ok": True}
+
+
 class Req(BaseModel):
-    request: str
+    model_config = {"str_strip_whitespace": True}
+    request: str = Field(max_length=10000)
     replay: bool = False
 
 
 class Text(BaseModel):
-    text: str
+    model_config = {"str_strip_whitespace": True}
+    text: str = Field(min_length=1, max_length=2000)
 
 
 class Ids(BaseModel):
-    ids: list[str]
+    ids: list[str] = Field(min_length=1, max_length=20)
 
 
 class One(BaseModel):
-    id: str
-
-
-def _client(request: Request):
-    fwd = request.headers.get("x-forwarded-for", "")
-    return fwd.split(",")[0].strip() or (request.client.host if request.client else None)
+    id: str = Field(min_length=1, max_length=200)
 
 
 @app.post("/api/hunts")
 async def start(body: Req, request: Request):
     if body.replay:
         from .replay import ReplayHunt
-        h = ReplayHunt()
+        h = ReplayHunt(owner=request.state.owner)
     else:
         if not body.request.strip():
             raise HTTPException(400, "Describe what you want to buy.")
         try:
-            limits.check_new_hunt(HUNTS, _client(request))
+            limits.check_new_hunt(HUNTS, request.state.owner)
         except limits.LimitError as e:
             raise HTTPException(429, str(e))
-        h = Hunt(body.request.strip()[:2000])
+        h = Hunt(body.request.strip(), owner=request.state.owner)
     _bg(h.run())
     return {"id": h.id}
 
 
 @app.post("/api/hunts/{hid}/answer")
-async def answer(hid: str, body: Text):
-    h = _hunt(hid)
+async def answer(hid: str, body: Text, request: Request):
+    h = _hunt(hid, request)
     if not h.answer_future or h.answer_future.done():
         raise HTTPException(400, "no open question")
     h.answer_future.set_result(body.text)
@@ -99,21 +178,21 @@ async def answer(hid: str, body: Text):
 
 
 @app.post("/api/hunts/{hid}/approve")
-async def approve(hid: str, body: Ids):
-    h = _hunt(hid)
-    ok = h.phase == "awaiting_approval" or any(
-        h.items.get(i, {}).get("state") == "shortlisted" and h.items[i].get("draft") for i in body.ids)
-    if not ok:
-        raise HTTPException(400, f"can't approve in phase {h.phase}")
+async def approve(hid: str, body: Ids, request: Request):
+    h = _hunt(hid, request)
+    try:
+        h.validate_approval(body.ids)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
     _bg(h.approve(body.ids))
     return {"ok": True}
 
 
 @app.post("/api/hunts/{hid}/confirm")
-async def confirm(hid: str, body: One):
-    h = _hunt(hid)
+async def confirm(hid: str, body: One, request: Request):
+    h = _hunt(hid, request)
     try:
-        await h.confirm(body.id)  # replay hunts accept any id
+        await h.confirm(body.id)
     except ValueError as e:
         raise HTTPException(400, str(e))
     return {"ok": True}
@@ -122,60 +201,78 @@ async def confirm(hid: str, body: One):
 # ---- seller inbox (haggle's message hub): a person can play any seller live at /inbox
 
 class SellerMsg(BaseModel):
-    text: str
-    price_sek: float | None = None
+    model_config = {"str_strip_whitespace": True, "allow_inf_nan": False}
+    text: str = Field(min_length=1, max_length=2000)
+    price_sek: float | None = Field(default=None, gt=0)
 
 
 class ModeBody(BaseModel):
     mode: str
 
 
+def _inbox_thread(tid, request):
+    thread = inbox.THREADS.get(tid)
+    h = HUNTS.get((thread or {}).get("hunt"))
+    if not thread or not h or h.owner != request.state.owner:
+        raise HTTPException(404, "no such conversation")
+    return thread
+
+
 @app.get("/api/inbox")
-async def inbox_list():
-    from . import inbox
-    threads = [{"id": lid, "title": t["listing"].get("title", lid), "price_sek": t["listing"].get("price_sek"),
-                "location": t["listing"].get("location"), "seller": (t["listing"].get("seller") or {}).get("name"),
-                "mode": inbox.mode(lid), "n": len(t["messages"]), "last": t["messages"][-1] if t["messages"] else None}
-               for lid, t in inbox.THREADS.items()]
-    threads.sort(key=lambda x: -(x["last"] or {}).get("seq", 0))
+async def inbox_list(request: Request):
     claimable = []
-    if HUNTS:
-        h = list(HUNTS.values())[-1]
+    for h in HUNTS.values():
+        if h.owner != request.state.owner or h.closed:
+            continue
         for it in h.items.values():
-            if it["state"] in ("shortlisted", "approved", "negotiating") and it["id"] not in inbox.THREADS:
-                l = it["listing"]
-                claimable.append({"id": it["id"], "title": l["title"], "price_sek": l["price_sek"],
-                                  "seller": (l.get("seller") or {}).get("name"), "mode": inbox.mode(it["id"])})
+            if it["state"] == "shortlisted":
+                tid = inbox.open_thread(it["id"], it["listing"], h.id)
+                if not inbox.THREADS[tid]["messages"]:
+                    l = it["listing"]
+                    claimable.append({"id": tid, "title": l["title"], "price_sek": l["price_sek"],
+                                      "seller": (l.get("seller") or {}).get("name"), "mode": inbox.mode(tid)})
+    threads = []
+    for tid, t in inbox.THREADS.items():
+        h = HUNTS.get(t["hunt"])
+        if not h or h.owner != request.state.owner:
+            continue
+        last = {k: v for k, v in t["messages"][-1].items() if k != "thoughts"} if t["messages"] else None
+        threads.append({"id": tid, "title": t["listing"].get("title", tid), "price_sek": t["listing"].get("price_sek"),
+                        "location": t["listing"].get("location"), "seller": (t["listing"].get("seller") or {}).get("name"),
+                        "mode": inbox.mode(tid), "n": len(t["messages"]), "last": last})
+    threads.sort(key=lambda t: -(t["last"] or {}).get("seq", 0))
     return {"threads": threads, "claimable": claimable}
 
 
-@app.get("/api/inbox/{lid}/messages")
-async def inbox_messages(lid: str, after: int = 0):
-    from . import inbox
-    t = inbox.THREADS.get(lid)
-    msgs = [m for m in (t or {}).get("messages", []) if m["seq"] > after]
-    return [{k: v for k, v in m.items() if k != "thoughts"} for m in msgs]  # a seller never sees the agent's thoughts
+@app.get("/api/inbox/{tid}/messages")
+async def inbox_messages(tid: str, request: Request, after: int = 0):
+    t = _inbox_thread(tid, request)
+    return [{k: v for k, v in m.items() if k != "thoughts"} for m in t["messages"] if m["seq"] > after]
 
 
-@app.post("/api/inbox/{lid}/messages")
-async def inbox_reply(lid: str, body: SellerMsg):
-    from . import inbox
-    if inbox.mode(lid) != "human":
-        inbox.set_mode(lid, "human")  # typing a reply takes over this seller from the bot
-    return await inbox.post(lid, "seller", body.text.strip()[:2000], body.price_sek)
+@app.post("/api/inbox/{tid}/messages")
+async def inbox_reply(tid: str, body: SellerMsg, request: Request):
+    t = _inbox_thread(tid, request)
+    if HUNTS[t["hunt"]].closed:
+        raise HTTPException(400, "hunt is closed")
+    inbox.set_mode(tid, "human")
+    return await inbox.post(tid, "seller", body.text.strip()[:2000], body.price_sek)
 
 
-@app.put("/api/inbox/{lid}/mode")
-async def inbox_mode(lid: str, body: ModeBody):
-    from . import inbox
-    inbox.set_mode(lid, body.mode)
-    return {"id": lid, "mode": inbox.mode(lid)}
+@app.put("/api/inbox/{tid}/mode")
+async def inbox_mode(tid: str, body: ModeBody, request: Request):
+    _inbox_thread(tid, request)
+    if body.mode not in ("human", "bot"):
+        raise HTTPException(400, "mode must be human or bot")
+    inbox.set_mode(tid, body.mode)
+    return {"id": tid, "mode": inbox.mode(tid)}
 
 
 class NewListing(BaseModel):
-    title: str
-    description: str
-    price_sek: int
+    model_config = {"str_strip_whitespace": True}
+    title: str = Field(min_length=1, max_length=300)
+    description: str = Field(min_length=1, max_length=10000)
+    price_sek: int = Field(gt=0)
     location: str = "Stockholm"
     source: str = "Blocket"
     shipping: bool = False
@@ -198,6 +295,11 @@ async def post_listing(body: NewListing):
                           "language": "sv", "is_scam": False, "scam_signals": [], "expected_verdict": "match",
                           "notes": "posted live during the demo"}})
     return {"id": lid}
+
+
+@app.get("/healthz")
+async def health():
+    return {"status": "ok"}
 
 
 @app.get("/api/info")
@@ -227,19 +329,21 @@ _AUDIO = {}  # upload id -> list of chunks (chunked so it survives tunnels with 
 @app.post("/api/transcribe/chunk")
 async def transcribe_chunk(request: Request, id: str, i: int):
     data = await request.body()
-    if len(data) > 256_000 or i > 400 or len(_AUDIO) > 50:
+    if len(data) > 256_000 or not 0 <= i <= 400 or len(_AUDIO) > 50:
         raise HTTPException(400, "chunk too large")
-    _AUDIO.setdefault(id, {})[i] = data
+    _AUDIO.setdefault((request.state.owner, id), {})[i] = data
     return {"ok": True}
 
 
 @app.post("/api/transcribe/finish")
-async def transcribe_finish(id: str, mime: str = "audio/webm"):
+async def transcribe_finish(request: Request, id: str, mime: str = "audio/webm"):
     from .voice import transcribe as tr
-    parts = _AUDIO.pop(id, None)
+    parts = _AUDIO.pop((request.state.owner, id), None)
     if not parts:
         raise HTTPException(400, "no audio uploaded")
     data = b"".join(parts[k] for k in sorted(parts))
+    if len(data) > 10_000_000:
+        raise HTTPException(400, "audio exceeds 10 MB")
     try:
         return {"text": await tr(data, mime)}
     except Exception as e:
@@ -247,20 +351,22 @@ async def transcribe_finish(id: str, mime: str = "audio/webm"):
 
 
 @app.get("/api/hunts/{hid}")
-async def snapshot(hid: str):
-    return _hunt(hid).snapshot()
+async def snapshot(hid: str, request: Request):
+    return _hunt(hid, request).snapshot()
 
 
 @app.get("/api/hunts/{hid}/events")
-async def events(hid: str, start: int = 0):
-    h = _hunt(hid)
+async def events(hid: str, request: Request, start: int = 0):
+    h = _hunt(hid, request)
 
     async def gen():
-        i = start
-        while True:
+        i = max(0, start)
+        while not await request.is_disconnected():
             while i < len(h.events):
                 yield f"data: {json.dumps(h.events[i], ensure_ascii=False)}\n\n"
                 i += 1
+            if h.closed and not getattr(h, "finalizing", False) and i >= len(h.events):
+                return
             async with h.cond:
                 try:
                     await asyncio.wait_for(h.cond.wait(), timeout=15)

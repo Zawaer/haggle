@@ -11,7 +11,6 @@ MAX_ACTIVE = int(os.environ.get("HAGGLE_MAX_ACTIVE_HUNTS", "4"))      # live hun
 PER_HOUR = int(os.environ.get("HAGGLE_HUNTS_PER_HOUR", "40"))         # live hunts per hour, all users
 PER_CLIENT_HOUR = int(os.environ.get("HAGGLE_HUNTS_PER_CLIENT_HOUR", "8"))
 DAILY_CALLS = int(os.environ.get("HAGGLE_DAILY_CALL_CAP", "5000"))    # Gemini calls per 24 h, all users
-KEEP_HUNTS = 80                                                       # finished hunts kept in memory
 
 _starts = deque()        # (time, client)
 _calls = deque()         # time of every Gemini call
@@ -35,22 +34,15 @@ def _trim(now):
 def _active(hunts, now):
     # a hunt counts as active while it is working (not waiting on the user) and younger than 15 minutes
     return sum(1 for h in hunts.values() if not getattr(h, "is_replay", False)
-               and h.phase not in ("awaiting_approval", "awaiting_confirmation", "done", "error")
+               and h.phase not in ("awaiting_approval", "awaiting_confirmation", "done", "error", "paused")
                and not (h.answer_future and not h.answer_future.done())
                and now - h.started < 900)
-
-
-def prune(hunts):
-    if len(hunts) > KEEP_HUNTS:
-        for hid in sorted(hunts, key=lambda k: hunts[k].started)[: len(hunts) - KEEP_HUNTS]:
-            h = hunts.pop(hid)
-            h.watching = False
 
 
 def check_new_hunt(hunts, client=None):
     now = time.time()
     _trim(now)
-    prune(hunts)
+    # Durable hunts remain addressable; never evict active tasks or saved approval gates.
     busy = "haggle is busy with other people's hunts right now"
     if len(_calls) >= DAILY_CALLS:
         raise LimitError("Today's Gemini budget for this public demo is used up. Try the recorded replay (?replay=1).")

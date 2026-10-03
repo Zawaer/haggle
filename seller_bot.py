@@ -18,12 +18,12 @@ log = logging.getLogger("seller_bot")
 BUSY = set()
 
 
-async def reply(http, lid):
+async def reply(http, lid, conversation="local"):
     try:
         listing = marketplace.get(lid)
     except StopIteration:
         return
-    msgs = (await http.get(f"/api/listings/{lid}/messages", params={"after": 0})).json()
+    msgs = (await http.get(f"/api/listings/{lid}/messages", params={"after": 0, "conversation": conversation})).json()
     if not msgs or msgs[-1]["from"] != "buyer":
         return
     thread = [{"role": m["from"], "text": m["text"], "price_sek": m.get("price_sek")} for m in msgs]
@@ -34,7 +34,7 @@ async def reply(http, lid):
     if price and price < floor:
         price = floor
     await http.post(f"/api/listings/{lid}/messages",
-                    json={"from": "seller", "text": s["message"], "price_sek": price, "thoughts": s["private_thoughts"]})
+                    json={"conversation": conversation, "from": "seller", "text": s["message"], "price_sek": price, "thoughts": s["private_thoughts"]})
     log.info("%s replied (%s %s)", lid, s["action"], price)
 
 
@@ -47,14 +47,16 @@ async def main():
                 for c in convs:
                     lid = c.get("id") or c.get("listing_id") or c.get("listing", {}).get("id")
                     last = c.get("last_message") or {}
-                    if not lid or lid in BUSY or last.get("from") != "buyer":
+                    conversation = c.get("conversation", "local")
+                    key = (lid, conversation)
+                    if not lid or key in BUSY or last.get("from") != "buyer":
                         continue
                     mode = c.get("seller_mode") or (await http.get(f"/api/listings/{lid}")).json().get("seller_mode", "bot")
                     if mode != "bot":
                         continue
-                    BUSY.add(lid)
-                    task = asyncio.create_task(reply(http, lid))
-                    task.add_done_callback(lambda t, lid=lid: BUSY.discard(lid))
+                    BUSY.add(key)
+                    task = asyncio.create_task(reply(http, lid, conversation))
+                    task.add_done_callback(lambda t, key=key: BUSY.discard(key))
             except Exception as e:
                 log.warning("poll failed: %s", e)
             await asyncio.sleep(1.0)

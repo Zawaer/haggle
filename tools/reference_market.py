@@ -54,8 +54,8 @@ def post(lid: str, m: Msg):
 
 
 @app.get("/api/listings/{lid}/messages")
-def get(lid: str, after: int = 0):
-    return [m for m in MSGS if m["listing_id"] == lid and m["seq"] > after]
+def get(lid: str, after: int = 0, conversation: str = "local"):
+    return [m for m in MSGS if m["listing_id"] == lid and m.get("conversation", "local") == conversation and m["seq"] > after]
 
 
 @app.put("/api/listings/{lid}/seller-mode")
@@ -68,5 +68,5 @@ def mode(lid: str, m: Mode):
 def convs():
     out = {}
     for m in MSGS:
-        out[m["listing_id"]] = {"id": m["listing_id"], "last_message": m, "seller_mode": MODE.get(m["listing_id"], "bot")}
+        out[(m["listing_id"], m.get("conversation", "local"))] = {"id": m["listing_id"], "conversation": m.get("conversation", "local"), "last_message": m, "seller_mode": MODE.get(m["listing_id"], "bot")}
     return list(out.values())

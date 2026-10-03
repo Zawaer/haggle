@@ -6,6 +6,8 @@ extracted facts, so verdicts are explainable and reproducible.
 """
 import re
 import statistics
+import math
+import unicodedata
 
 from . import config, marketplace
 from .llm import ask_json
@@ -41,6 +43,8 @@ INTAKE_SCHEMA = {
             "description": "6-10 short marketplace search queries in Swedish AND English, the way sellers "
                            "actually write titles (e.g. 'speldator rtx 3060', 'gaming pc 3060', 'stationär dator 16gb').",
         },
+        "unsupported_requirements": {"type": "array", "items": {"type": "string"},
+            "description": "List every hard constraint this schema cannot represent (e.g. CPU model, brand, screen size, warranty). Never silently drop constraints. Empty if all are represented."},
         "clarifying_question": {
             "type": "string",
             "description": "Ask ONE question only if something essential is truly ambiguous (e.g. 'good for gaming' "
@@ -50,7 +54,7 @@ INTAKE_SCHEMA = {
     },
     "required": ["summary", "category", "budget_max_sek", "target_price_sek", "gpu_min", "gpu_allow_equivalent",
                  "ram_gb_min", "storage_gb_min", "storage_ssd_required", "city", "shipping_ok", "used_ok",
-                 "search_queries", "clarifying_question"],
+                 "search_queries", "clarifying_question", "unsupported_requirements"],
 }
 
 
@@ -58,12 +62,23 @@ async def intake(request, budget, answer=None):
     prompt = f"User request: {request}"
     if answer:
         prompt += f"\nAnswer to your clarifying question: {answer}\nDo not ask another question."
-    return await ask_json(
+    result = await ask_json(
         prompt, INTAKE_SCHEMA, budget=budget,
         system="You turn a shopper's request for a second-hand purchase in Sweden into structured requirements. "
                "Anything you say to the user (summary, clarifying question) must be in the language the user wrote in; "
                "only the search queries mix Swedish and English.",
     )
+
+    if result.get("clarifying_question", "").strip() and not answer:
+        return result
+    ceiling = result["budget_max_sek"]
+    if not isinstance(ceiling, (int, float)) or not math.isfinite(ceiling) or ceiling <= 0:
+        raise ValueError("Please give a positive budget in SEK.")
+    if result["category"] not in ("desktop_pc", "laptop", "gpu_only"):
+        raise ValueError("This version supports desktop PCs, laptops and graphics cards. Please narrow the request.")
+    if result.get("unsupported_requirements"):
+        raise ValueError("Cannot reliably verify these requirements yet: " + ", ".join(result["unsupported_requirements"]))
+    return result
 
 
 # ---------------------------------------------------------------- 3. Extract
@@ -80,6 +95,7 @@ EXTRACT_SCHEMA = {
         "hdd_gb": {"type": "number", "description": "Total HDD capacity in GB, -1 if not stated, 0 if none."},
         "storage_type_unclear_gb": {"type": "number", "description": "Capacity stated without saying SSD or HDD, else 0."},
         "working": {"type": "string", "enum": ["yes", "no", "unknown"]},
+        "condition": {"type": "string", "enum": ["new", "used", "unknown"]},
         "evidence": {
             "type": "array", "items": {"type": "string"},
             "description": "Short verbatim quotes from the listing that support the extracted specs.",
@@ -94,7 +110,7 @@ EXTRACT_SCHEMA = {
         "is_for_sale": {"type": "boolean", "description": "False for wanted ads (KÖPES / WTB), swap-only ads or service offers."},
     },
     "required": ["category", "gpu", "gpu_is_laptop_variant", "cpu", "ram_gb", "ssd_gb", "hdd_gb",
-                 "storage_type_unclear_gb", "working", "evidence", "contradictions", "risk_signals", "language", "is_for_sale"],
+                 "storage_type_unclear_gb", "working", "condition", "evidence", "contradictions", "risk_signals", "language", "is_for_sale"],
 }
 
 
@@ -115,6 +131,18 @@ def in_stockholm(location):
     return any(p in loc for p in STOCKHOLM_AREA)
 
 
+def location_matches(location, city):
+    def norm(value):
+        value = unicodedata.normalize("NFKD", (value or "").casefold())
+        return " ".join(re.findall(r"[a-z0-9]+", "".join(c for c in value if not unicodedata.combining(c))))
+    aliases = {"gothenburg": "goteborg", "malmo": "malmo"}
+    want = aliases.get(norm(city), norm(city))
+    have = aliases.get(norm(location), norm(location))
+    if want == "stockholm":
+        return in_stockholm(location)
+    return bool(want) and bool(re.search(r"(?:^| )" + re.escape(want) + r"(?:$| )", have))
+
+
 def match(listing, specs, req):
     """Per-requirement verdicts: pass / fail / uncertain, each with a reason."""
     v = {}
@@ -124,8 +152,12 @@ def match(listing, specs, req):
 
     if specs.get("is_for_sale") is False:
         v["type"] = ("fail", "wanted ad (someone else buying), not for sale")
-    if specs.get("working") == "no":
-        v["works"] = ("fail", "listed as broken / not working")
+    v["works"] = {"yes": ("pass", "working"), "no": ("fail", "listed as broken / not working")}.get(
+        specs.get("working"), ("uncertain", "working condition not confirmed"))
+    if not req.get("used_ok", True):
+        condition = specs.get("condition", "unknown")
+        v["condition"] = {"new": ("pass", "new and unused"), "used": ("fail", "used item; new required")}.get(
+            condition, ("uncertain", "new/used condition not confirmed"))
 
     if req["gpu_min"]:
         need = gpu_score(req["gpu_min"]) or 100
@@ -133,6 +165,10 @@ def match(listing, specs, req):
         have = gpu_score(gpu) if specs["gpu"] else None
         if have is None:
             v["gpu"] = ("uncertain", f"GPU not stated clearly ('{specs['gpu'] or '—'}')")
+        elif not req.get("gpu_allow_equivalent", True) and normalize_gpu(gpu) != normalize_gpu(req["gpu_min"]):
+            v["gpu"] = ("fail", f"exact GPU {req['gpu_min']} requested; equivalents not allowed")
+        elif gpu_score(req["gpu_min"]) is None:
+            v["gpu"] = ("uncertain", "requested GPU is not in the benchmark table")
         elif have >= need:
             same = normalize_gpu(gpu) == normalize_gpu(req["gpu_min"])
             v["gpu"] = ("pass", f"{specs['gpu']} ≥ {req['gpu_min']}" + ("" if same else f" (tier {have} vs {need})"))
@@ -169,7 +205,7 @@ def match(listing, specs, req):
         ("uncertain", f"{p:,} kr asking, {p - bmax:,} over budget: needs negotiation") if p <= bmax * 1.25 else
         ("fail", f"{p:,} kr asking, far over budget"))
 
-    if in_stockholm(listing["location"]):
+    if location_matches(listing["location"], req.get("city")):
         v["location"] = ("pass", f"pickup in {listing['location']}")
     elif listing.get("shipping") and req["shipping_ok"]:
         v["location"] = ("pass", f"ships from {listing['location']}")
@@ -232,6 +268,6 @@ def rank_score(listing, specs, verdicts, risk_score, req):
     spec_pts = 25 * max(0.0, min(1.0, (gs - need) / 60 + 0.5)) if gs else 8
     unknown_pen = 8 * sum(1 for v in verdicts.values() if v["status"] == "uncertain" and "budget" not in v["reason"])
     risk_pen = risk_score * 0.4
-    near_pts = 10 if in_stockholm(listing["location"]) else 4
+    near_pts = 10 if location_matches(listing["location"], req.get("city")) else 4
     rep_pts = 5 if (listing["seller"].get("rating") or 0) >= 4.5 else 0
     return round(price_pts + spec_pts + near_pts + rep_pts - unknown_pen - risk_pen, 1)

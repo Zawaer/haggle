@@ -20,11 +20,18 @@ REQ = ("I want a gaming PC for under 8,000 SEK. At least an RTX 3060 or equivale
 
 async def one():
     h = Hunt(REQ)
-    await h.run()
-    while h.phase != "awaiting_approval":
+    h.source = "local"
+    if h.market:
+        await h.market.http.aclose()
+        h.market = None
+    run = asyncio.create_task(h.run())
+    while not run.done():
         if h.answer_future and not h.answer_future.done():
             h.answer_future.set_result("Use your best judgement.")
         await asyncio.sleep(0.3)
+    await run
+    if h.phase != "awaiting_approval":
+        raise RuntimeError(f"Benchmark stopped in {h.phase}")
     await h.approve([i["id"] for i in h.items.values() if i["state"] == "shortlisted"])
     rows = []
     for it in h.items.values():
@@ -36,6 +43,9 @@ async def one():
         rows.append({"id": it["id"], "state": it["state"], "ask": ask, "floor": floor,
                      "agreed": d["price_sek"] if d else None, "msgs": len(it["thread"]),
                      "over_budget": bool(d and d["price_sek"] > h.req["budget_max_sek"])})
+    if h.watch_task:
+        h.watch_task.cancel()
+        await asyncio.gather(h.watch_task, return_exceptions=True)
     return rows, h.budget.calls, h.events[-1]["t"]
 
 
@@ -48,7 +58,10 @@ async def main(n):
     deals = [r for r in allrows if r["agreed"] and r["floor"] and r["ask"] > r["floor"]]
     cap = [(r["ask"] - r["agreed"]) / (r["ask"] - r["floor"]) for r in deals]
     off = [(r["ask"] - r["agreed"]) / r["ask"] for r in deals]
+    from haggle import condense, config
     res = {
+        "model": config.MODEL, "compression_enabled": condense.enabled(), "market": "local",
+        "note": "Simulated sellers. Not a paired quality comparison; guardrail regressions are tested separately.",
         "runs": n, "threads": len(allrows), "deals": len(deals),
         "avg_discount_captured": round(statistics.mean(cap), 3) if cap else None,
         "avg_pct_below_asking": round(statistics.mean(off), 3) if off else None,

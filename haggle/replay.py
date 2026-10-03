@@ -1,58 +1,70 @@
-"""Replay a recorded hunt (no API calls): for frontend development and as the offline demo fallback.
-
-Behaves like a live Hunt for the UI: events stream with their original timing (sped up), and the run
-pauses at the approval and confirmation steps until the user clicks.
-"""
+"""Offline recording with real approval selection; never contacts an external marketplace."""
 import asyncio
 import json
-import time
-
 from .config import DATA
-from .orchestrator import HUNTS, Hunt
-
-PAUSE_AT = {"awaiting_approval": "approve", "awaiting_confirmation": "confirm"}
+from .orchestrator import Hunt
 
 
 class ReplayHunt(Hunt):
-    is_replay = True  # no API calls: exempt from the public limits
+    is_replay = True  # recordings make no provider calls
 
-    def __init__(self, path=DATA / "demo_run.json", speed=1.0):
-        rec = json.loads(open(path).read())
-        super().__init__(rec["request"])
+    def __init__(self, path=DATA / "demo_run.json", speed=1.0, owner="local"):
+        rec = json.loads(path.read_text())
+        super().__init__(rec["request"], owner=owner)
+        self.market = None
+        self.source = "replay"
         self.recorded, self.speed = rec["events"], speed
         self.gates = {"approve": asyncio.Event(), "confirm": asyncio.Event()}
-        self.confirm_id = None
+        self.selected = None
 
     async def run(self):
-        t_prev, offset = 0.0, 0.0
+        previous = 0
         for ev in self.recorded:
-            if ev["type"] in ("message",) and ev.get("action") == "release":
+            if self.closed:
+                return
+            if ev["type"] == "message" and ev.get("action") == "release":
                 continue
-            wait = max(0.0, (ev["t"] - t_prev) / self.speed)
-            await asyncio.sleep(min(wait, 3.0))
-            t_prev = ev["t"]
+            if ev["type"] == "listing" and ev.get("state") in ("confirmed", "released"):
+                continue
+            await asyncio.sleep(min(max(0, (ev["t"] - previous) / self.speed), 3))
+            previous = ev["t"]
+            if self.selected is not None and ev.get("id") and ev["id"] not in self.selected:
+                continue
             data = {k: v for k, v in ev.items() if k not in ("seq", "t", "type", "calls")}
             self.budget.calls = max(self.budget.calls, ev.get("calls", 0))
-            if ev["type"] == "listing" and ev["id"] in self.items:
-                self.items[ev["id"]].update({k: v for k, v in data.items() if k != "id"})
+            lid = ev.get("id")
             if ev["type"] == "found":
-                self.items[ev["id"]] = {"id": ev["id"], "listing": ev["listing"], "state": "found", "thread": []}
-            if ev["type"] == "requirements":
+                self.items[lid] = {"id": lid, "listing": ev["listing"], "state": "found", "thread": []}
+            elif ev["type"] == "listing" and lid in self.items:
+                self.items[lid].update({k: v for k, v in data.items() if k != "id"})
+            elif ev["type"] == "draft":
+                self.items[lid]["draft"] = data
+            elif ev["type"] == "message":
+                self.items[lid]["thread"].append({k: v for k, v in data.items() if k != "id"})
+            elif ev["type"] == "requirements":
                 self.req = ev["req"]
-            if ev["type"] == "phase":
+            elif ev["type"] == "handoff":
+                data["ids"] = [i for i in data["ids"] if i in (self.selected or set())]
+                data["best"] = data["ids"][0] if data["ids"] else None
+            elif ev["type"] == "phase":
                 self.phase = ev["phase"]
-            if ev["type"] == "listing" and ev["state"] == "confirmed":
-                break
             await self.emit(ev["type"], **data)
-            gate = PAUSE_AT.get(data.get("phase")) if ev["type"] == "phase" else None
-            if gate:
-                await self.gates[gate].wait()
-        if self.confirm_id:
-            await Hunt.confirm(self, self.confirm_id)
+            if ev["type"] == "phase" and self.phase == "awaiting_approval":
+                await self.gates["approve"].wait()
+            elif ev["type"] == "phase" and self.phase == "awaiting_confirmation":
+                await self.gates["confirm"].wait()
+                return
 
     async def approve(self, ids):
-        self.gates["approve"].set()
+        async with self.lock:
+            self.validate_approval(ids)
+            if self.selected is not None:
+                raise ValueError("replay selection already approved")
+            self.selected = set(ids)
+            for lid in ids:
+                await self.set_state(lid, "approved")
+            self.gates["approve"].set()
 
     async def confirm(self, lid):
-        self.confirm_id = lid
+        await super().confirm(lid)
         self.gates["confirm"].set()

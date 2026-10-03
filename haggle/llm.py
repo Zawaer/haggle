@@ -35,6 +35,7 @@ class Budget:
 
     def __init__(self, cap=config.MAX_LLM_CALLS_PER_HUNT):
         self.cap, self.calls, self.seconds = cap, 0, 0.0
+        self.condense_failures = 0
         self.condense_calls, self.condense_in, self.condense_out = 0, 0, 0  # chars before/after compression
 
     def take(self):

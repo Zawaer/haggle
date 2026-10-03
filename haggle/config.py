@@ -39,3 +39,5 @@ WATCH_MINUTES = int(os.environ.get("HAGGLE_WATCH_MINUTES", "180"))       # stop 
 # Listing source: "mockbay" (our team's mock marketplace site, falls back to local on error) or "local"
 # (the built-in 42-listing dataset with hidden ground truth, used by the evals and replay).
 MARKET = os.environ.get("HAGGLE_MARKET", "mockbay").lower()
+
+ALLOW_LOCAL_FALLBACK = os.environ.get("HAGGLE_ALLOW_LOCAL_FALLBACK", "0") == "1"
