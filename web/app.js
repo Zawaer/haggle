@@ -66,16 +66,41 @@
   // ------------------------------------------------------------------ elements
   const E = {
     form: $("#hunt-form"), request: $("#request"), huntBtn: $("#hunt-btn"), echo: $("#request-echo"), replay: $("#replay"),
-    stepper: $("#stepper"), status: $("#status"), statusText: $("#status-text"), calls: $("#calls"), callsN: $("#calls-n"), clock: $("#clock"),
+    status: $("#status"), statusText: $("#status-text"), calls: $("#calls"), callsN: $("#calls-n"), clock: $("#clock"), barFill: $("#bar-fill"), work: $("#work"),
     question: $("#question"), qText: $("#question-text"), answerForm: $("#answer-form"), answer: $("#answer"),
-    reqs: $("#reqs"), reqChips: $("#req-chips"), reqQueries: $("#req-queries"),
+    reqs: $("#reqs"), reqChips: $("#req-chips"),
     boardSec: $("#board-sec"), board: $("#board"), rejected: $("#rejected"), rejList: $("#rej-list"), rejN: $("#rej-n"),
     cFound: $("#c-found"), cRej: $("#c-rej"), cScam: $("#c-scam"), cShort: $("#c-short"),
-    approval: $("#approval"), drafts: $("#drafts"), approveBtn: $("#approve-btn"),
-    nego: $("#nego"), panes: $("#panes"), negoCount: $("#nego-count"), thoughts: $("#thoughts-toggle"),
+    picks: $("#picks"), picksTitle: $("#picks-title"), picksSub: $("#picks-sub"), moreBtn: $("#more-btn"), sendBar: $("#send-bar"), sendNote: $("#send-note"), approveBtn: $("#approve-btn"), allSum: $("#all-sum"),
+    nego: $("#nego"), panes: $("#panes"), threads: $("#threads"), negoCount: $("#nego-count"), thoughts: $("#thoughts-toggle"),
     handoff: $("#handoff"), savings: $("#savings"), deals: $("#deals"), handoffTitle: $("#handoff-title"),
     error: $("#error"),
   };
+
+  // ------------------------------------------------------------------ views: home → best fits → negotiation
+  // One view on screen at a time. "Negotiation" unlocks once you message a seller; both stay clickable after,
+  // and a tab whose view changed while you were elsewhere gets a dot.
+  const tabs = [...document.querySelectorAll("#tabs [data-go]")];
+  let view = "home", negoOpen = false;
+  function setView(v) {
+    if (v === "nego" && !negoOpen) return;
+    const moved = v !== view;
+    view = v;
+    document.body.dataset.view = v;
+    tabs.forEach((b) => {
+      b.disabled = b.dataset.go === "nego" && !negoOpen;
+      b.classList.toggle("on", b.dataset.go === v);
+      if (b.dataset.go === v) { b.setAttribute("aria-current", "page"); b.classList.remove("ping"); } else b.removeAttribute("aria-current");
+    });
+    if (moved) window.scrollTo({ top: 0 });
+  }
+  function openNego() {
+    if (negoOpen) return;
+    negoOpen = true;
+    setView("nego");
+  }
+  function ping(v) { const b = tabs.find((t) => t.dataset.go === v); if (b && v !== view && !b.disabled) b.classList.add("ping"); }
+  tabs.forEach((b) => b.addEventListener("click", () => setView(b.dataset.go)));
 
   // ------------------------------------------------------------------ api
   async function api(path, body) {
@@ -174,6 +199,8 @@
     hideClarify();
     if (replay || opts.clarified) return launch(request, opts);
     E.huntBtn.disabled = true;
+    const label = E.huntBtn.innerHTML;
+    E.huntBtn.textContent = "Thinking…";  // the landing page has no status line
     setStatus("Checking what I need to know…");
     try {
       const res = await api("/api/clarify", { request });
@@ -183,6 +210,7 @@
       // clarify unavailable: don't block the hunt
     } finally {
       E.huntBtn.disabled = false;
+      E.huntBtn.innerHTML = label;
     }
     launch(request, { clarified: true });
   }
@@ -193,6 +221,7 @@
     try {
       const { id } = await api("/api/hunts", { request: replay ? "" : request, replay, answers: opts.answers || [], clarified: !!opts.clarified });
       resetUI();
+      setView("results");
       S.started = true; S.gone = false;
       E.echo.textContent = replay ? "Replaying a recorded hunt…" : request;
       document.body.classList.add("running");
@@ -245,23 +274,17 @@
     S.phase = phase;
     setCalls(calls);
     const step = PHASE_STEP[phase] ?? 0;
-    [...E.stepper.children].forEach((li, i) => {
-      const done = i < step || phase === "done";
-      li.classList.toggle("done", done);
-      li.classList.toggle("active", i === step && !phase.startsWith("awaiting") && phase !== "done");
-      li.classList.toggle("waiting", i === step && phase.startsWith("awaiting"));
-      $(".n", li).textContent = done ? "✓" : String(i + 1).padStart(2, "0");
-    });
-    const cur = E.stepper.children[Math.min(step, 7)];
-    if (cur && E.stepper.scrollWidth > E.stepper.clientWidth) E.stepper.scrollLeft = Math.max(0, cur.offsetLeft - E.stepper.offsetLeft - 40);
+    E.barFill.style.width = `${Math.min(100, ((step + (phase.startsWith("awaiting") || phase === "done" ? 1 : 0.5)) / 6) * 100)}%`;
+    // the progress strip is for the search; once there's something to choose, it gets out of the way
+    E.work.classList.toggle("quiet", step >= 5);
     if (phase === "negotiate") {
       const n = Object.values(S.items).filter((it) => it.state === "approved" || it.state === "negotiating").length;
       setStatus(n ? `Negotiating with ${n} sellers in parallel` : PHASE_TEXT.negotiate);
     } else if (PHASE_TEXT[phase]) setStatus(PHASE_TEXT[phase]);
     E.status.classList.toggle("idle", phase.startsWith("awaiting") || phase === "done");
 
-    if (phase === "awaiting_approval") openApproval();
-    if (phase === "negotiate") closeApproval();
+    if (phase === "awaiting_approval") updateApproveBtn();
+    if (phase === "negotiate" || phase === "awaiting_confirmation" || phase === "done") { if (!negoOpen) openNego(); updateApproveBtn(); }
     if (phase === "awaiting_confirmation" || phase === "done") renderHandoff();
     if (phase !== "intake") show(E.question, false);
     let resume = document.getElementById("resume-hunt");
@@ -304,16 +327,13 @@
   function onRequirements(req) {
     S.req = req;
     const parts = [];
-    if (req.budget_max_sek) parts.push(`Budget <b class="mono">≤ ${kr(req.budget_max_sek)}</b>${req.target_price_sek ? ` <span class="muted">(aiming for ~${num(req.target_price_sek)})</span>` : ""}`);
     if (req.gpu_min) parts.push(`${esc(req.gpu_min)}${req.gpu_allow_equivalent ? " or better" : " (exact model)"}`);
     if (req.ram_gb_min) parts.push(`${req.ram_gb_min} GB RAM`);
-    if (req.storage_gb_min) parts.push(`${fmtGB(req.storage_gb_min)}${req.storage_ssd_required ? " SSD" : " storage"}`);
-    if (req.city || req.shipping_ok) parts.push([esc(req.city), req.shipping_ok ? "shipping" : ""].filter(Boolean).join(" or "));
-    if (req.used_ok) parts.push("used is fine");
-    E.reqChips.innerHTML = parts.map((p) => `<span class="req">${p}</span>`).join('<span class="sep"> · </span>');
-    const qs = req.search_queries || [];
-    E.reqQueries.innerHTML = qs.length ? `<span class="muted">Searching for </span><span class="mono q">${qs.map(esc).join(", ")}</span>` : "";
-    show(E.reqs, true);
+    if (req.storage_gb_min) parts.push(`${fmtGB(req.storage_gb_min)}${req.storage_ssd_required ? " SSD" : ""}`);
+    if (req.budget_max_sek) parts.push(`under <b class="mono">${kr(req.budget_max_sek)}</b>`);
+    if (req.city) parts.push(`near ${esc(req.city)}${req.shipping_ok ? " or shipped" : ""}`);
+    E.reqChips.innerHTML = parts.join('<span class="sep"> · </span>');
+    show(E.reqs, parts.length > 0);
   }
 
   // ------------------------------------------------------------------ listing ledger
@@ -337,6 +357,7 @@
     renderCard(ev.id, prev);
     updateCounters();
     if (S.panes[ev.id] || LIVE_STATES.has(it.state)) updatePane(ev.id, prev);
+    if (prev !== it.state && S.shortlist.includes(ev.id)) { renderPick(ev.id); updateApproveBtn(); }
     if (S.handoff) renderHandoff();
   }
 
@@ -349,6 +370,7 @@
     }
     ids.forEach((id) => renderCard(id));
     updateCounters();
+    renderPicks();
   }
 
   function cardOrder(it) {
@@ -479,63 +501,106 @@
     E.rejN.textContent = rej;
     set(E.cScam, all.filter((it) => it.state === "scam").length);
     set(E.cShort, S.shortlist.length);
+    const scams = all.filter((it) => it.state === "scam").length;
+    E.allSum.textContent = `See all ${all.length} listings we checked` + (scams ? ` · ${scams} scam${scams === 1 ? "" : "s"} avoided` : "");
   }
 
-  // ------------------------------------------------------------------ approval (outbox)
+  // ------------------------------------------------------------------ best fits (picks) + approval
+  // The shortlist as cards: the top 3 up front, the rest behind "Show more". Tick the sellers to message,
+  // then one button sends. Sellers you skip can still be messaged later (the server allows it mid-negotiation).
+  const TOP = 3;
+  const PICK_CHECKS = ["gpu", "ram", "storage", "price", "location"];
+  const CHECK_LABEL = { gpu: "GPU", ram: "RAM", storage: "SSD", price: "Price", location: "Location" };
+  const picked = new Set();
+  let showAll = false;
+
   function onDraft(ev) {
     S.drafts[ev.id] = ev;
+    ping("results");
     if (S.items[ev.id]?.isNew) { renderWatchHit(ev.id); return; }
-    show(E.approval, true);
-    E.approveBtn.disabled = S.phase !== "awaiting_approval";
-    if (S.phase !== "awaiting_approval") E.approveBtn.textContent = "Drafting…";
-    const it = S.items[ev.id] || {};
-    const l = it.listing || {};
-    const d = document.getElementById(`draft-${ev.id}`);
-    const offer = ev.offer_sek
-      ? `<span class="muted">Asking ${kr(l.price_sek)}</span> <span class="arr">→</span> opening offer <b class="money">${kr(ev.offer_sek)}</b>`
-      : `<span class="muted">Asking ${kr(l.price_sek)}</span> <span class="arr">→</span> asks a question first`;
-    const html = `<label class="draft" id="draft-${esc(ev.id)}">
-      <input type="checkbox" checked data-id="${esc(ev.id)}">
-      <div class="draft-body">${ph(l, "draft-ph")}
-        <div class="draft-to mono">To <b>${esc(l.seller?.name || "seller")}</b> · ${esc(SRC(l.source || "")[1])}</div>
-        <div class="draft-title">${esc(l.title || ev.id)}</div>
-        <div class="draft-offer mono">${offer}</div>
-        <blockquote class="draft-msg">${esc(ev.message)}</blockquote>
-        ${ev.private_thoughts ? `<p class="thought"><span class="tl">reasoning:</span> ${esc(ev.private_thoughts)}</p>` : ""}
-      </div>
-    </label>`;
-    if (d) d.replaceWith(h(html)); else E.drafts.appendChild(h(html));
-    // keep the shortlist order
-    S.shortlist.forEach((id) => { const n = document.getElementById(`draft-${id}`); if (n) E.drafts.appendChild(n); });
+    renderPick(ev.id);
     updateApproveBtn();
   }
 
-  function selectedIds() { return [...E.drafts.querySelectorAll("input[type=checkbox]:checked")].map((c) => c.dataset.id); }
-  function updateApproveBtn() {
-    if (S.phase !== "awaiting_approval") return;
-    const n = selectedIds().length;
-    E.approveBtn.disabled = n === 0;
-    E.approveBtn.textContent = n ? `Send ${n} message${n > 1 ? "s" : ""}` : "Select at least one seller";
+  function renderPicks() {
+    E.picks.innerHTML = "";
+    const ids = S.shortlist.filter((id) => !S.items[id]?.isNew);
+    if (!ids.length) return;
+    ids.forEach((id, i) => { if (i < TOP && !S.touched) picked.add(id); renderPick(id); });
+    E.picksTitle.textContent = ids.length === 1 ? "Your best fit" : `Your ${Math.min(TOP, ids.length)} best fits`;
+    const all = Object.values(S.items).filter((it) => it.listing).length;
+    E.picksSub.textContent = `Out of ${all} listings, these match what you asked for and look safe. Pick who your agent should message.`;
+    updateMore();
+    show(E.sendBar, true);
+    updateApproveBtn();
   }
-  E.drafts.addEventListener("change", (e) => {
-    const cb = e.target.closest("input[type=checkbox]");
-    if (cb) cb.closest(".draft").classList.toggle("off", !cb.checked);
+
+  function updateMore() {
+    const extra = S.shortlist.filter((id) => !S.items[id]?.isNew).length - TOP;
+    show(E.moreBtn, extra > 0);
+    E.moreBtn.textContent = showAll ? "Show fewer" : `Show ${extra} more option${extra === 1 ? "" : "s"}`;
+    E.picks.classList.toggle("show-all", showAll);
+  }
+  E.moreBtn.addEventListener("click", () => { showAll = !showAll; updateMore(); });
+
+  function riskWord(r) { return r >= 60 ? ["high", "r-hi"] : r >= 25 ? ["some", "r-mid"] : ["low", "r-lo"]; }
+
+  function renderPick(id) {
+    const rank = S.shortlist.filter((x) => !S.items[x]?.isNew).indexOf(id);
+    if (rank < 0) return;
+    const it = S.items[id] || {};
+    const l = it.listing || {};
+    const d = S.drafts[id];
+    const st = it.state;
+    const sent = st && st !== "shortlisted";
+    const on = picked.has(id);
+    const v = it.verdicts || {};
+    const checks = PICK_CHECKS.filter((k) => v[k]).map((k) => `<li class="${esc(v[k].status)}" title="${esc(v[k].reason)}">${VICON[v[k].status] || ""} ${CHECK_LABEL[k]}</li>`).join("");
+    const [rw, rc] = riskWord(it.risk ?? 0);
+    const offer = d?.offer_sek ? `Opens at <b class="money mono">${kr(d.offer_sek)}</b>` : d ? "Asks a question first" : `<span class="muted">Writing a message…</span>`;
+    let action;
+    if (sent) action = `<button type="button" class="pick-go" data-view-nego>✓ Messaged · see the chat</button>`;
+    else action = `<button type="button" class="pick-sel ${on ? "on" : ""}" data-pick="${esc(id)}" aria-pressed="${on}" ${d ? "" : "disabled"}>${on ? "✓ Will message" : "Message this seller"}</button>`;
+    const node = h(`<article class="pick ${rank >= TOP ? "extra" : ""} ${on && !sent ? "on" : ""} ${sent ? "sent" : ""}" id="pick-${esc(id)}" style="animation-delay:${(rank % TOP) * 70}ms">
+      ${ph(l, "pick-ph")}
+      <div class="pick-top mono"><span class="${rank === 0 ? "best" : ""}">${rank === 0 ? "Best fit" : `#${rank + 1}`}</span><span>${esc(l.location || "")}</span></div>
+      <h3 class="pick-title">${l.url ? `<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.title || id)}</a>` : esc(l.title || id)}</h3>
+      <p class="pick-specs mono">${specsLine(it.specs)}</p>
+      <p class="pick-price"><span class="ask mono">${kr(l.price_sek)}</span><span class="offer">${offer}</span></p>
+      <ul class="pick-checks">${checks}<li class="risk ${rc}">${rw} risk</li></ul>
+      ${d ? `<details class="pick-msg"><summary>Read the opening message</summary><blockquote>${esc(d.message)}</blockquote></details>` : ""}
+      ${action}
+    </article>`);
+    const old = document.getElementById(`pick-${id}`);
+    if (old) old.replaceWith(node); else E.picks.appendChild(node);
+  }
+
+  E.picks.addEventListener("click", (e) => {
+    if (e.target.closest("[data-view-nego]")) { setView("nego"); return; }
+    const b = e.target.closest("[data-pick]");
+    if (!b || b.disabled) return;
+    const id = b.dataset.pick;
+    S.touched = true;
+    if (picked.has(id)) picked.delete(id); else picked.add(id);
+    renderPick(id);
     updateApproveBtn();
   });
 
-  function openApproval() {
-    show(E.approval, true);
-    E.approval.classList.remove("sent");
-    $(".lock-note", E.approval).textContent = "Nothing is sent until you approve.";
-    updateApproveBtn();
-    scrollToEl(E.approval);
-  }
-
-  function closeApproval() {
-    if (E.approval.classList.contains("hidden")) return;
-    E.approval.classList.add("sent");
-    const n = Object.values(S.items).filter((it) => it.state === "approved" || it.state === "negotiating").length || selectedIds().length;
-    $(".lock-note", E.approval).textContent = `✓ Approved by you. ${n || ""} opening message${n === 1 ? "" : "s"} sent.`;
+  function selectedIds() { return [...picked].filter((id) => S.items[id]?.state === "shortlisted" && S.drafts[id]); }
+  function updateApproveBtn() {
+    const n = selectedIds().length;
+    const negotiating = Object.values(S.items).some((it) => it.state !== "shortlisted" && S.panes[it.id]);
+    const ready = S.phase === "awaiting_approval" || (negotiating && n > 0);
+    E.approveBtn.disabled = !ready || n === 0;
+    if (!S.shortlist.length) return;
+    if (negotiating) {
+      const live = Object.keys(S.panes).length;
+      E.picksSub.textContent = `Your agent is talking to ${live} of them${n || S.shortlist.some((id) => S.items[id]?.state === "shortlisted") ? ". You can still add others." : "."}`;
+    }
+    if (!ready && !negotiating) E.approveBtn.textContent = "Writing messages…";
+    else if (n) E.approveBtn.textContent = `Message ${n} seller${n > 1 ? "s" : ""} →`;
+    else E.approveBtn.textContent = negotiating ? "Pick another seller to add" : "Pick at least one seller";
+    show(E.sendBar, !negotiating || selectedIds().length > 0 || S.shortlist.some((id) => S.items[id]?.state === "shortlisted"));
   }
 
   E.approveBtn.addEventListener("click", async () => {
@@ -543,8 +608,12 @@
     if (!ids.length || !S.id) return;
     E.approveBtn.disabled = true;
     E.approveBtn.textContent = "Sending…";
-    try { await api(`/api/hunts/${S.id}/approve`, { ids }); S.approved = true; }
-    catch (e) { showError(`Approve failed: ${e.message}`); updateApproveBtn(); }
+    try {
+      await api(`/api/hunts/${S.id}/approve`, { ids });
+      S.approved = true;
+      ids.forEach((id) => picked.delete(id));
+      if (!negoOpen) openNego(); else setView("nego");
+    } catch (e) { showError(`Couldn't message sellers: ${e.message}`); updateApproveBtn(); }
   });
 
   // ------------------------------------------------------------------ watch mode
@@ -568,10 +637,11 @@
 
   function onWatchHit(ev) {
     if (!S.shortlist.includes(ev.id)) S.shortlist.push(ev.id);
+    ping(2);
     renderCard(ev.id);
     updateCounters();
     renderWatchHit(ev.id, ev.text);
-    scrollToEl(E2.watch);
+    ping("results");
   }
 
   function renderWatchHit(id, text) {
@@ -599,7 +669,7 @@
     try {
       await api(`/api/hunts/${S.id}/approve`, { ids: [b.dataset.id] });
       const w = b.closest(".whit"); w.classList.add("sent");
-      b.replaceWith(h(`<span class="mono small">✓ Approved. Negotiating below.</span>`));
+      b.replaceWith(h(`<span class="mono small">✓ Approved. See the Negotiation tab.</span>`));
     } catch (err) { showError(`Approve failed: ${err.message}`); b.disabled = false; b.textContent = "Approve and negotiate"; }
   });
 
@@ -617,36 +687,67 @@
     finally { setTimeout(() => { E2.postTest.disabled = false; }, 1500); }
   });
 
-  // ------------------------------------------------------------------ negotiation transcripts
+  // ------------------------------------------------------------------ negotiation: seller list + one open chat
+  // Like a messaging app: every seller is a row (status + current price in plain words); the open chat shows
+  // just three numbers (asking, seller now, your offer) above the conversation.
+  const ACT_PILL = { offer: "Offers", counter: "Counters with", accept: "Accepts", walk_away: "Walks away", decline: "Declines" };
+  const RULE_TEXT = {
+    budget_cap: "Safety check: kept the offer within your budget",
+    false_claim: "Safety check: blocked a claim that wasn't true",
+    message_limit: "Safety check: message limit reached",
+    untrusted_input: "Safety check: ignored instructions hidden in the seller's message",
+  };
+  let activePane = null;
+
   function ensurePane(id) {
     if (S.panes[id]) return S.panes[id];
     const it = S.items[id] || { id };
     const l = it.listing || {};
-    const [cls, name] = SRC(l.source || "");
-    const el = h(`<article class="pane" id="pane-${esc(id)}">
-      <header class="pane-head">${ph(l, "pane-ph")}
-        <div class="pane-meta mono"><span class="${cls}">${name}</span><span>${esc(l.seller?.name || "")}</span></div>
-        <h3 class="pane-title" title="${esc(l.title)}">${esc(l.title || id)}</h3>
-        <div class="pane-ask">Asking <b class="mono askv">${kr(l.price_sek)}</b></div>
-        <div class="ticker">
-          <div class="tick-nums mono"><span class="you">you <b class="tb">–</b></span><span class="them">seller <b class="ts">${kr(l.price_sek)}</b></span></div>
-          <div class="track2"><span class="rail"></span><span class="gap"></span><span class="askmk"></span><span class="cap"></span><span class="mk s"></span><span class="mk b hidden"></span></div>
+    const el = h(`<article class="pane hidden" id="pane-${esc(id)}">
+      <header class="pane-head">
+        <div class="pane-id">${ph(l, "pane-ph")}<div><h3 class="pane-title">${esc(l.title || id)}</h3>
+          <p class="pane-who muted">${esc(l.seller?.name || "Seller")} · ${esc(l.location || "")}</p></div></div>
+        <div class="nums">
+          <div><span>Asking</span><b class="mono">${kr(l.price_sek)}</b></div>
+          <div><span>Seller now</span><b class="mono ts">${kr(l.price_sek)}</b></div>
+          <div class="you"><span>Your offer</span><b class="mono tb">–</b></div>
         </div>
-        <div class="badge neg">negotiating…</div>
+        <p class="badge neg">Your agent is negotiating…</p>
       </header>
       <div class="chat"></div>
     </article>`);
     E.panes.appendChild(el);
-    const pane = { el, chat: $(".chat", el), buyer: null, seller: l.price_sek || null, typing: null };
+    const row = h(`<button type="button" class="thread" data-thread="${esc(id)}">
+      ${ph(l, "th-ph")}
+      <span class="th-main"><span class="th-title">${esc(l.seller?.name || "Seller")}</span><span class="th-item">${esc(l.title || id)}</span><span class="th-status">Negotiating…</span></span>
+      <span class="th-price mono"><b>${kr(l.price_sek)}</b></span>
+    </button>`);
+    E.threads.appendChild(row);
+    const pane = { el, row, chat: $(".chat", el), buyer: null, seller: l.price_sek || null, typing: null };
     S.panes[id] = pane;
     show(E.nego, true);
+    if (!negoOpen) openNego();
     const n = Object.keys(S.panes).length;
-    E.negoCount.textContent = `· ${n} seller${n > 1 ? "s" : ""} at once`;
-    E.panes.style.setProperty("--n", n);
-    if (n === 1) scrollToEl(E.nego);
+    E.negoCount.textContent = `· ${n} seller${n > 1 ? "s" : ""}`;
+    if (!activePane) selectPane(id);
     updateTicker(id);
     return pane;
   }
+
+  function selectPane(id) {
+    activePane = id;
+    Object.entries(S.panes).forEach(([pid, p]) => {
+      const on = pid === id;
+      show(p.el, on);
+      p.row.classList.toggle("on", on);
+      p.row.setAttribute("aria-pressed", String(on));
+      if (on) { p.row.classList.remove("unread"); requestAnimationFrame(() => { p.chat.scrollTop = p.chat.scrollHeight; }); }
+    });
+  }
+  E.threads.addEventListener("click", (e) => {
+    const r = e.target.closest("[data-thread]");
+    if (r) selectPane(r.dataset.thread);
+  });
 
   function nearBottom(chat) { return chat.scrollHeight - chat.scrollTop - chat.clientHeight < 120; }
   function appendChat(pane, node) {
@@ -654,6 +755,7 @@
     if (pane.typing) { pane.typing.remove(); pane.typing = null; }
     pane.chat.appendChild(node);
     if (stick) requestAnimationFrame(() => { pane.chat.scrollTop = pane.chat.scrollHeight; });
+    if (pane !== S.panes[activePane]) pane.row.classList.add("unread");
   }
   function setTyping(id, who) {
     const pane = S.panes[id];
@@ -661,8 +763,7 @@
     if (pane.typing) { pane.typing.remove(); pane.typing = null; }
     const st = S.items[id]?.state;
     if (!who || !LIVE_STATES.has(st)) return;
-    const name = who === "buyer" ? "you" : (S.items[id]?.listing?.seller?.name || "seller");
-    pane.typing = h(`<div class="typing ${who === "buyer" ? "buyer-t" : ""}"><span class="mono">${esc(name)}</span><i></i><i></i><i></i></div>`);
+    pane.typing = h(`<div class="typing ${who === "buyer" ? "buyer-t" : ""}"><i></i><i></i><i></i></div>`);
     const stick = nearBottom(pane.chat);
     pane.chat.appendChild(pane.typing);
     if (stick) pane.chat.scrollTop = pane.chat.scrollHeight;
@@ -672,19 +773,14 @@
     const pane = ensurePane(ev.id);
     const role = ev.role === "seller" ? "seller" : "buyer";
     const rel = ev.action === "release";
-    const accept = ev.action === "accept";
-    const who = role === "buyer" ? (rel ? "you · release" : "you") : esc(S.items[ev.id]?.listing?.seller?.name || "seller");
-    const verb = ACT[ev.action] ?? String(ev.action || "").replace(/_/g, " ");
-    const tag = ev.price_sek
-      ? `<span class="ptag ${accept ? "accept" : ""}">${verb ? `${esc(verb)} ` : ""}<b>${kr(ev.price_sek)}</b></span>`
-      : verb && !rel ? `<span class="ptag act">${esc(verb)}</span>` : "";
-    const checks = (ev.checks && ev.checks.length) ? `<p class="checks mono">${ev.checks.map((c) => `<span>✓ ${esc(c)}</span>`).join('<span class="sep"> · </span>')}</p>` : "";
+    const who = role === "buyer" ? "Your agent" : esc(S.items[ev.id]?.listing?.seller?.name || "Seller");
+    const verb = ACT_PILL[ev.action];
+    const pill = ev.price_sek && !rel ? `<span class="pill ${ev.action === "accept" ? "accept" : ""}">${verb ? `${verb} ` : ""}<b>${kr(ev.price_sek)}</b></span>`
+      : verb && !rel ? `<span class="pill">${verb}</span>` : "";
     const node = h(`<div class="msg ${role} ${rel ? "release" : ""}">
-      <div class="who mono"><span>${who}</span>${typeof ev.t === "number" ? `<span class="tm">${fmtClock(ev.t)}</span>` : ""}</div>
-      <p class="txt">${esc(ev.text)}</p>
-      ${tag ? `<div class="tags">${tag}</div>` : ""}
-      ${checks}
-      ${ev.thoughts ? `<p class="thought"><span class="tl">thinks:</span> ${esc(ev.thoughts)}</p>` : ""}
+      <div class="bubble"><p class="txt">${esc(ev.text)}</p>${pill}</div>
+      <div class="meta">${who}${typeof ev.t === "number" ? ` · ${fmtClock(ev.t)}` : ""}</div>
+      ${ev.thoughts ? `<p class="thought"><span class="tl">thinking:</span> ${esc(ev.thoughts)}</p>` : ""}
     </div>`);
     appendChat(pane, node);
     if (ev.price_sek && !rel) {
@@ -696,34 +792,21 @@
 
   function onGuardrail(ev) {
     const pane = ensurePane(ev.id);
-    const name = { budget_cap: "budget cap", false_claim: "false claim blocked", message_limit: "message limit", untrusted_input: "untrusted seller input" }[ev.rule] || String(ev.rule || "guardrail").replace(/_/g, " ");
-    appendChat(pane, h(`<div class="rule mono"><b>RULE</b><span>${esc(name)} — ${esc(ev.detail)} <span class="dim">(enforced in code)</span></span></div>`));
+    const text = RULE_TEXT[ev.rule] || `Safety check: ${String(ev.rule || "").replace(/_/g, " ")}`;
+    appendChat(pane, h(`<div class="sys rule" title="${esc(ev.detail || "")}"><span>${esc(text)}</span></div>`));
   }
 
+  // plain numbers instead of a chart: seller's current price, your last offer, and the same on the list row
   function updateTicker(id, flashRole) {
     const pane = S.panes[id];
     const it = S.items[id] || {};
-    const ask = it.listing?.price_sek || pane.seller || 0;
-    const cap = S.req?.budget_max_sek || 0;
+    const ask = it.listing?.price_sek || 0;
     const tb = $(".tb", pane.el), ts = $(".ts", pane.el);
     tb.textContent = pane.buyer ? kr(pane.buyer) : "–";
     ts.textContent = pane.seller ? kr(pane.seller) : "–";
     if (flashRole) bump(flashRole === "buyer" ? tb : ts, "flash");
-    const vals = [ask, cap, pane.buyer, pane.seller].filter((v) => v > 0);
-    if (!vals.length) return;
-    const lo = Math.min(...vals) * 0.92, hi = Math.max(...vals) * 1.04;
-    const pos = (v) => `${((v - lo) / (hi - lo)) * 100}%`;
-    const tr = $(".track2", pane.el);
-    const mb = $(".mk.b", tr), ms = $(".mk.s", tr), gap = $(".gap", tr), capEl = $(".cap", tr), askEl = $(".askmk", tr);
-    if (cap && capEl) { capEl.style.left = pos(cap); capEl.dataset.l = `max ${num(cap)}`; } else if (capEl) capEl.remove();
-    askEl.style.left = pos(ask);
-    askEl.dataset.l = `ask`;
-    if (pane.seller) ms.style.left = pos(pane.seller);
-    if (pane.buyer) { show(mb, true); mb.style.left = pos(pane.buyer); }
-    if (pane.buyer && pane.seller) {
-      const a = Math.min(pane.buyer, pane.seller), b = Math.max(pane.buyer, pane.seller);
-      gap.style.left = pos(a); gap.style.width = `${((b - a) / (hi - lo)) * 100}%`;
-    } else gap.style.width = "0";
+    const now = it.deal?.price_sek || pane.seller || ask;
+    $(".th-price", pane.row).innerHTML = now && ask && now < ask ? `<s>${num(ask)}</s> <b>${kr(now)}</b>` : `<b>${kr(now || ask)}</b>`;
   }
 
   function updatePane(id, prev) {
@@ -731,46 +814,48 @@
     const it = S.items[id];
     const badge = $(".badge", pane.el);
     const st = it.state;
-    const set = (cls, txt) => { badge.className = `badge ${cls}`; badge.textContent = txt; };
+    const price = it.deal?.price_sek;
+    const ask = it.listing?.price_sek;
+    const save = price && ask && ask > price ? ` · ${kr(ask - price)} below asking` : "";
+    const why = it.reason ? `: ${clip(it.reason, 90)}` : "";
+    const [cls, long, short] =
+      st === "approved" || st === "negotiating" ? ["neg", "Your agent is negotiating…", "Negotiating…"]
+      : st === "deal_offered" ? ["b-deal", `Deal at ${kr(price)}${save}. Reserved until you confirm.`, `Deal at ${kr(price)}`]
+      : st === "confirmed" ? ["b-deal", `You're buying this for ${kr(price)}`, "Confirmed"]
+      : st === "walked_away" ? ["bad", `No deal, your agent walked away${why}`, "No deal"]
+      : st === "dropped" ? ["bad", `Dropped${why}`, "Dropped"]
+      : st === "seller_declined" ? ["bad", "The seller said no", "Seller said no"]
+      : st === "no_deal" ? ["bad", `No deal${why}`, "No deal"]
+      : st === "released" ? ["bad", "You chose another deal. The seller was told politely.", "Not chosen"]
+      : [null, null, null];
+    if (cls) {
+      badge.className = `badge ${cls}`; badge.textContent = long;
+      const ts = $(".th-status", pane.row); ts.textContent = short; ts.className = `th-status ${cls}`;
+    }
     pane.el.classList.toggle("is-deal", st === "deal_offered" || st === "confirmed");
     pane.el.classList.toggle("is-dead", DEAD_STATES.has(st));
-    const why = it.reason ? ` — ${clip(it.reason, 90)}` : "";
-    if (st === "approved" || st === "negotiating") set("neg", "negotiating…");
-    else if (st === "deal_offered") set("b-deal", `DEAL ${kr(it.deal?.price_sek)}`);
-    else if (st === "confirmed") set("b-deal", `CONFIRMED ${kr(it.deal?.price_sek)}`);
-    else if (st === "walked_away") set("bad", `walked away${why}`);
-    else if (st === "dropped") set("bad", `dropped${why}`);
-    else if (st === "seller_declined") set("bad", "seller declined");
-    else if (st === "no_deal") set("bad", `no deal${why}`);
-    else if (st === "released") set("bad", "released politely");
+    pane.row.classList.toggle("is-deal", st === "deal_offered" || st === "confirmed");
+    pane.row.classList.toggle("is-dead", DEAD_STATES.has(st));
 
     if (st !== prev) {
-      const sys = {
-        deal_offered: () => ["deal", `Deal at ${kr(it.deal?.price_sek)}, reserved until you confirm`],
-        confirmed: () => ["deal", "You confirmed this deal"],
-        walked_away: () => ["", "Your agent walked away"],
-        dropped: () => ["", "Dropped"],
-        seller_declined: () => ["", "Seller declined"],
-        no_deal: () => ["", "No deal"],
-        released: () => ["", "Seller released politely"],
-      }[st];
-      if (sys) {
-        const [cls, txt] = sys();
-        appendChat(pane, h(`<div class="sys ${cls}"><span>${esc(txt)}</span></div>`));
-      }
+      const sys = { deal_offered: ["deal", `Agreed on ${kr(price)}`], confirmed: ["deal", "You confirmed this deal"] }[st];
+      if (sys) appendChat(pane, h(`<div class="sys ${sys[0]}"><span>${esc(sys[1])}</span></div>`));
       if (!LIVE_STATES.has(st)) setTyping(id, null);
-      if (st === "deal_offered" && it.deal?.price_sek) { pane.buyer = pane.seller = it.deal.price_sek; updateTicker(id); }
+      if (st === "deal_offered" && price) { pane.buyer = pane.seller = price; updateTicker(id); }
     }
   }
 
   E.thoughts.addEventListener("change", () => document.body.classList.toggle("hide-thoughts", !E.thoughts.checked));
+  document.body.classList.toggle("hide-thoughts", !E.thoughts.checked);
 
-  // ------------------------------------------------------------------ handoff (receipts)
+  // ------------------------------------------------------------------ deals: pick one
   function onHandoff(ev) {
     S.handoff = ev;
+    if (!negoOpen) openNego();
+    ping("nego");
     setCalls(ev.calls);
     renderHandoff();
-    scrollToEl(E.handoff);
+    if (view === "nego") window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function renderHandoff() {
@@ -780,25 +865,18 @@
     const best = S.handoff.best;
     const confirmed = Object.values(S.items).find((it) => it.state === "confirmed");
     const all = Object.values(S.items).filter((it) => it.listing);
-    const nego = Object.keys(S.panes).length;
-    const released = Object.values(S.items).filter((it) => it.state === "released").length;
-    const focus = confirmed || S.items[best];
-    const saved = focus?.deal?.saved_sek || 0;
-    const pct = focus?.deal?.asking_sek ? Math.round((saved / focus.deal.asking_sek) * 100) : 0;
     const scams = all.filter((x) => x.state === "scam").length;
-    const facts = [`${all.length} listings read`, scams ? `${scams} scam${scams === 1 ? "" : "s"} avoided` : null, `${nego} seller${nego === 1 ? "" : "s"}, in parallel`, `${S.calls} Gemini calls`, S.handoff?.condense ? `condense: −${S.handoff.condense.saved_pct}% selected-text characters` : null, `${Math.round(S.t)} s`].filter(Boolean)
-      .map((f) => `<span>${f}</span>`).join(" · ");
+    const facts = [`${all.length} listings checked`, scams ? `${scams} scam${scams === 1 ? "" : "s"} avoided` : null, `${S.calls} Gemini calls`, `${Math.round(S.t)} s`].filter(Boolean).join(" · ");
 
-    if (!ids.length) {
-      E.savings.innerHTML = `<p class="save-big"><span class="amt none">No deal yet.</span></p><p class="save-note">None of the sellers agreed within your limits, so your agent didn't overpay.</p><p class="save-facts mono">${facts}</p>`;
-    } else {
-      const mref = S.handoff.market_ref, fprice = focus?.deal?.price_sek;
-      const under = mref && fprice && mref - fprice > 0 ? ` · ${kr(mref - fprice)} under the typical asking price (${kr(mref)})` : "";
-      E.savings.innerHTML = `<p class="save-big"><span class="lbl">${confirmed ? "You saved" : "Saves you"}</span> <span class="amt">${kr(saved)}</span> <span class="pct mono">${pct}% under asking${under}</span></p>
-        <p class="save-facts mono">${facts}</p>
-        ${confirmed ? `<p class="save-note">Confirmed: <b>${esc(confirmed.listing.title)}</b> for <span class="money mono">${kr(confirmed.deal?.price_sek)}</span>. ${confirmed.deal?.logistics ? `Handover: ${esc(confirmed.deal.logistics)}. ` : ""}${released ? `Your agent politely released the other ${released} seller${released > 1 ? "s" : ""}.` : ""}</p>` : `<p class="save-note">Nothing is bought until you confirm one. The others are released politely.</p>`}`;
-    }
-    E.handoffTitle.textContent = confirmed ? "Done" : ids.length ? `${ids.length} deal${ids.length > 1 ? "s" : ""} reserved. Pick one.` : "Your deals";
+    E.handoffTitle.textContent = confirmed ? "Done! You've got a deal."
+      : ids.length === 1 ? "A seller agreed. Confirm it?"
+      : ids.length ? `${ids.length} sellers agreed. Pick one.`
+      : "No deal this time";
+    E.savings.innerHTML = confirmed
+      ? `<p class="save-note">You're buying <b>${esc(confirmed.listing.title)}</b> for <b class="money mono">${kr(confirmed.deal?.price_sek)}</b>${confirmed.deal?.logistics ? `. Handover: ${esc(confirmed.deal.logistics)}` : ""}. The other sellers were told politely.</p><p class="save-facts muted small">${facts}</p>`
+      : ids.length
+        ? `<p class="save-note">Nothing is bought until you confirm. The other sellers get a polite no.</p><p class="save-facts muted small">${facts}</p>`
+        : `<p class="save-note">No seller agreed to a price within your budget, so your agent didn't overpay.</p><p class="save-facts muted small">${facts}</p>`;
 
     const sorted = [...ids].sort((a, b) => (a === best ? -1 : b === best ? 1 : 0));
     E.deals.innerHTML = "";
@@ -809,25 +887,25 @@
       const isBest = id === best;
       const chosen = confirmed && confirmed.id === id;
       const ask = d.asking_sek || it.listing.price_sek;
-      const card = h(`<div class="receipt ${isBest && !confirmed ? "best" : ""} ${chosen ? "chosen" : ""} ${confirmed && !chosen ? "faded" : ""}" style="animation-delay:${i * 60}ms">
-        <div class="r-top mono"><span>${isBest ? "Recommended" : `Deal ${i + 1}`}</span><span>${esc(SRC(it.listing.source)[1])} · ${esc(id)}</span></div>${ph(it.listing, "r-ph")}
-        <h3 class="r-title">${esc(it.listing.title)}</h3>
-        <div class="r-specs mono">${specsLine(it.specs)}</div>
-        <div class="r-rule"></div>
-        <div class="r-line mono"><span>Asking</span><span>${kr(ask)}</span></div>
-        <div class="r-line mono r-agreed"><span>Agreed</span><span>${kr(d.price_sek)}</span></div>
-        <div class="r-rule"></div>
-        <div class="r-line mono r-save"><span>You save</span><span>${kr(d.saved_sek || 0)}</span></div>
-        <div class="r-rule"></div>
-        <div class="r-line mono small"><span>Seller</span><span>${esc(it.listing.seller?.name || "")}</span></div>
-        <div class="r-line mono small"><span>Handover</span><span>${esc(d.logistics || it.listing.location)}</span></div>
-        <div class="r-act">${chosen ? `<span class="stamp ok">Confirmed</span>` : confirmed ? `<span class="released">${it.state === "released" ? "Released politely" : ""}</span>` : `<button class="btn ${isBest ? "btn-ink" : "btn-line"}" data-confirm="${esc(id)}">Confirm this one</button>`}</div>
+      const saved = d.saved_sek ?? Math.max(0, ask - (d.price_sek || ask));
+      const card = h(`<div class="deal ${isBest && !confirmed ? "best" : ""} ${chosen ? "chosen" : ""} ${confirmed && !chosen ? "faded" : ""}" style="animation-delay:${i * 60}ms">
+        ${ph(it.listing, "deal-ph")}
+        <div class="deal-body">
+          ${isBest && !confirmed ? `<span class="tag">Recommended</span>` : ""}
+          <h3 class="deal-title">${esc(it.listing.title)}</h3>
+          <p class="deal-price"><b class="mono">${kr(d.price_sek)}</b>${saved > 0 ? ` <span class="save">you save ${kr(saved)}</span>` : ""}</p>
+          <p class="deal-was muted small">Was ${kr(ask)} · ${esc(it.listing.seller?.name || "seller")} · ${esc(d.logistics || it.listing.location || "")}</p>
+          <div class="deal-act">${chosen ? `<span class="done-mark">✓ Confirmed</span>` : confirmed ? "" : `<button class="btn ${isBest ? "btn-ink" : "btn-line"}" data-confirm="${esc(id)}">Buy this one</button>`}
+            <button type="button" class="linkbtn see-chat" data-chat="${esc(id)}">See the chat</button></div>
+        </div>
       </div>`);
       E.deals.appendChild(card);
     });
   }
 
   E.deals.addEventListener("click", async (e) => {
+    const c = e.target.closest("[data-chat]");
+    if (c) { selectPane(c.dataset.chat); E.nego.scrollIntoView({ behavior: "smooth", block: "start" }); return; }
     const b = e.target.closest("[data-confirm]");
     if (!b || !S.id) return;
     E.deals.querySelectorAll("[data-confirm]").forEach((x) => (x.disabled = true));
@@ -852,11 +930,17 @@
   function resetUI() {
     if (es) es.close();
     reset();
-    E.board.innerHTML = ""; E.board.classList.remove("has-short"); E.rejList.innerHTML = ""; E.drafts.innerHTML = ""; E.panes.innerHTML = ""; E.deals.innerHTML = ""; E.savings.innerHTML = "";
-    E.reqChips.innerHTML = ""; E.reqQueries.innerHTML = ""; E.callsN.textContent = "0";
-    [E.question, E.reqs, E.boardSec, E.rejected, E.approval, E.nego, E.handoff, E.error].forEach((el) => show(el, false));
-    E.approval.classList.remove("sent");
-    E.rejected.open = false;
+    E.board.innerHTML = ""; E.board.classList.remove("has-short"); E.rejList.innerHTML = ""; E.panes.innerHTML = ""; E.threads.innerHTML = ""; activePane = null; E.deals.innerHTML = ""; E.savings.innerHTML = "";
+    E.reqChips.innerHTML = ""; E.callsN.textContent = "0";
+    [E.question, E.reqs, E.boardSec, E.rejected, E.nego, E.handoff, E.error, E.moreBtn, E.sendBar].forEach((el) => show(el, false));
+    E.picks.innerHTML = '<div class="pick skel"></div><div class="pick skel"></div><div class="pick skel"></div>';
+    E.picksTitle.textContent = "Finding your best fits…";
+    E.picksSub.textContent = "Reading and checking every listing. This takes about half a minute.";
+    E.barFill.style.width = "0"; E.work.classList.remove("quiet");
+    picked.clear(); showAll = false;
+    E.rejected.open = false; E.boardSec.open = false;
+    negoOpen = false;
+    tabs.forEach((b) => b.classList.remove("ping"));
     updateCounters();
   }
 
@@ -965,9 +1049,10 @@
   api("/api/hunts").then((hunts) => {
     if (!hunts.length || params.get("h")) return;
     const list = document.createElement("div");
-    list.innerHTML = `<p>Saved hunts</p>${hunts.slice(-10).reverse().map((hunt) =>
+    list.className = "saved";
+    list.innerHTML = `<p class="saved-h">Earlier hunts</p>${hunts.slice(-10).reverse().map((hunt) =>
       `<p><a href="?h=${encodeURIComponent(hunt.id)}">${esc(hunt.request)} (${esc(hunt.phase)})</a></p>`).join("")}`;
-    E.form.after(list);
+    $(".home .hint").after(list);
   }).catch(() => {});
 
   // deep link from the Gemini app skill: /?q=<complete brief>&go=1 (questions were already asked in chat)
@@ -983,6 +1068,7 @@
   if (resume) {
     api(`/api/hunts/${resume}`).then((snap) => {
       S.started = true;
+      setView("results");
       document.body.classList.add("running");
       E.echo.textContent = snap?.request || "Replaying a recorded hunt…";
       if (snap?.request && !E.replay.checked) { E.request.value = snap.request; autosize(); }
