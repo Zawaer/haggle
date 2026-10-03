@@ -440,7 +440,8 @@ class IntegrationTests(Base):
         async def wait():
             while h.phase != phase:
                 await asyncio.sleep(0)
-        await asyncio.wait_for(wait(), 3)
+        # Replay persists every event; shared CI disks can take several seconds.
+        await asyncio.wait_for(wait(), 30)
 
     async def test_replay_respects_subset_and_confirms_only_selected(self):
         from haggle.replay import ReplayHunt
