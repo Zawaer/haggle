@@ -8,6 +8,7 @@ GET  /api/hunts/{id}                                       snapshot
 GET  /api/hunts/{id}/events?from=N                         SSE stream of every event from N
 """
 import asyncio
+import contextlib
 import json
 import logging
 
@@ -20,7 +21,19 @@ from .config import ROOT
 from .orchestrator import HUNTS, Hunt
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
-app = FastAPI(title="haggle")
+from .mcp_server import http_app as _mcp_http_app, mcp as _mcp
+
+_mcp_app = _mcp_http_app()
+
+
+@contextlib.asynccontextmanager
+async def _lifespan(app):
+    async with _mcp.session_manager.run():
+        yield
+
+
+app = FastAPI(title="haggle", lifespan=_lifespan)
+app.mount("/mcp", _mcp_app)  # MCP (streamable HTTP) for other agents, e.g. Matrix OS
 _tasks = set()
 
 

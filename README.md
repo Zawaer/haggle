@@ -109,6 +109,17 @@ Evaluation: `.venv/bin/python -m eval.eval_vetting`.
 | POST | `/api/hunts/{id}/confirm` `{"id"}` | confirm a deal; other sellers are released |
 | GET | `/api/hunts/{id}` | snapshot |
 
+## MCP: use haggle from any agent (e.g. Matrix OS)
+
+The server also speaks MCP (streamable HTTP) at **`/mcp/`**, sharing hunts with the web UI, so a hunt
+started from an agent chat shows up live in the browser. Tools: `start_hunt`, `hunt_status`,
+`answer_question`, `approve_outreach`, `confirm_deal`. The agent must get the user's OK before approving
+outreach or confirming a deal.
+
+```json
+{ "mcpServers": { "haggle": { "type": "http", "url": "http://localhost:3123/mcp/" } } }
+```
+
 ## Layout
 
 ```
@@ -120,6 +131,10 @@ haggle/negotiation.py   buyer agent and simulated seller agents
 haggle/orchestrator.py  state machine, guardrails, parallel negotiations, event log
 haggle/replay.py        replays a recorded run (offline fallback)
 haggle/server.py        FastAPI + SSE
+haggle/mcp_server.py    MCP tools for other agents (mounted at /mcp/)
+haggle/market_http.py   client for the external mock marketplace site
+seller_bot.py           plays sellers on the external marketplace (unless a human takes over)
+tools/reference_market.py  minimal reference implementation of the marketplace API
 web/                    frontend
 data/listings.json      mock marketplace with hidden ground truth (data/gen_listings.py generates it)
 eval/eval_vetting.py    accuracy against ground truth
