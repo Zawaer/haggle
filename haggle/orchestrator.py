@@ -60,6 +60,9 @@ class Hunt:
         if config.MARKET_URL:
             from .market_http import HttpMarket
             self.market = HttpMarket(conversation=self.id)
+        elif config.MARKET == "browser":  # drive mockbay's website in a real browser (market_browser.py)
+            from .market_browser import BrowserMarket
+            self.market = BrowserMarket(conversation=self.id)
         HUNTS[self.id] = self
 
     # ------------------------------------------------------------ events
@@ -143,7 +146,7 @@ class Hunt:
 
         await self.phase_to("search")
         found = await self._search()
-        where = "mockbay" if self.source == "mockbay" else "Blocket, Tradera and Facebook Marketplace"
+        where = {"mockbay": "mockbay", "browser": "mockbay (in the browser)"}.get(self.source, "Blocket, Tradera and Facebook Marketplace")
         await self.emit("status", text=f"Searched {where} with {len(self.req['search_queries'])} queries: {len(found)} listings")
         if not found:
             return await self._nothing(f"No listings on the marketplace match \u201c{self.req['summary']}\u201d right now.")
@@ -247,13 +250,14 @@ class Hunt:
         user to approve (nothing is sent automatically). Runs on the always-on machine (Matrix OS)."""
         if self.watching or self.closed:
             return
+        iv = config.WATCH_INTERVAL if self.source != "browser" else max(config.WATCH_INTERVAL, 120)  # a browser search reads ~30 pages
         self.watching = True
-        await self.emit("watch", active=True, interval=config.WATCH_INTERVAL,
-                        text=f"Watching for new listings every {config.WATCH_INTERVAL} s")
+        await self.emit("watch", active=True, interval=iv,
+                        text=f"Watching for new listings every {iv} s")
         end = self.watch_deadline
         try:
             while self.watching and time.time() < end:
-                await asyncio.sleep(config.WATCH_INTERVAL)
+                await asyncio.sleep(iv)
                 if not self.watching:
                     break
                 try:

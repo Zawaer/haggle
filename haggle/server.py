@@ -395,6 +395,31 @@ async def snapshot(hid: str, request: Request):
     return _hunt(hid, request).snapshot()
 
 
+def _shot_dir(hid):
+    from .market_browser import SHOTS
+    return SHOTS / hid
+
+
+@app.get("/api/hunts/{hid}/browser")
+async def browser_state(hid: str, request: Request):
+    """Browser mode: what the agent's browser is doing right now (label + timestamp of the latest screenshot)."""
+    _hunt(hid, request)
+    f = _shot_dir(hid) / "latest.txt"
+    if not f.exists():
+        return {"active": False}
+    t, _, label = f.read_text().partition(" ")
+    return {"active": True, "t": int(t), "label": label}
+
+
+@app.get("/api/hunts/{hid}/browser.jpg")
+async def browser_shot(hid: str, request: Request):
+    _hunt(hid, request)
+    f = _shot_dir(hid) / "latest.jpg"
+    if not f.exists():
+        raise HTTPException(404, "no browser view")
+    return FileResponse(f, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
+
+
 @app.get("/api/hunts/{hid}/events")
 async def events(hid: str, request: Request, start: int = 0):
     h = _hunt(hid, request)

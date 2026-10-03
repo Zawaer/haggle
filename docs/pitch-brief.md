@@ -74,8 +74,9 @@ Blocket tabs ahead of them.*
   API); 3.5 Flash-Lite plays the sellers and reads human sellers' replies; 3.5 Transcribe for voice.
 - **Matrix OS**: haggle runs on our Matrix cloud computer; we view it through Matrix port forwarding.
 - **condense.chat**: compresses each negotiation's growing context (listing text + older chat) before every
-  agent turn. Historical sample: seven simulated deals over two runs; not a controlled quality comparison. Their
-  dashboard shows the requests and tokens saved live.
+  agent turn. Historical sample: seven simulated deals over two runs; not a controlled quality comparison. Measured by
+  haggle itself (characters before/after each /v1/compress call): ~25-28% smaller negotiation context in
+  live runs. condense's own dashboard counts its CLI sessions, not direct API calls, so don't show it.
 
 ## Likely judge questions
 

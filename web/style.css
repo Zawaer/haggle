@@ -781,3 +781,10 @@ body:not([data-view="home"]) .topbar {
   .convo .pane:last-child { padding-right: 0; }
   .th-item { display: none; }
 }
+
+/* browser mode: live view of the agent's browser */
+.agent-browser { margin: 14px 0 6px; max-width: 560px; border: 1.5px solid var(--ink); background: #fff; }
+.agent-browser figcaption { font-size: .78rem; padding: 6px 10px; border-bottom: 1px solid var(--rule, #D8D3C7); color: var(--mute, #6A655B); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.agent-browser img { display: block; width: 100%; height: auto; }
+.ab-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--accent, #E5482B); margin-right: 6px; animation: abpulse 1.2s infinite; }
+@keyframes abpulse { 50% { opacity: .25; } }

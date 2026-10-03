@@ -22,7 +22,7 @@
   const params = new URLSearchParams(location.search);
   const PHASE_STEP = { intake: 0, search: 1, extract: 2, vet: 3, rank: 4, draft: 5, awaiting_approval: 5, negotiate: 6, awaiting_confirmation: 7, done: 8 };
   const PHASE_TEXT = {
-    search: "Searching Blocket, Tradera and Facebook Marketplace",
+    search: "Searching mockbay",
     extract: "Reading every listing, extracting specs from messy Swedish and English text",
     vet: "Checking each listing against your requirements, scoring scam risk",
     rank: "Ranking what's left",
@@ -115,9 +115,31 @@
     return r.json();
   }
 
+  // browser mode: poll the agent's live browser view (only shown when the server drives mockbay in a browser)
+  let abTimer = null, abLast = 0;
+  function watchBrowser(id) {
+    clearInterval(abTimer);
+    $("#agent-browser").classList.add("hidden");
+    abLast = 0;
+    abTimer = setInterval(async () => {
+      if (S.id !== id) return clearInterval(abTimer);
+      try {
+        const r = await fetch(`/api/hunts/${id}/browser`);
+        if (!r.ok) return;
+        const b = await r.json();
+        if (!b.active || b.t === abLast) return;
+        abLast = b.t;
+        $("#ab-label").textContent = b.label;
+        $("#ab-img").src = `/api/hunts/${id}/browser.jpg?t=${b.t}`;
+        $("#agent-browser").classList.remove("hidden");
+      } catch { /* ignore */ }
+    }, 1500);
+  }
+
   function connect(id) {
     if (es) es.close();
     S.id = id;
+    watchBrowser(id);
     es = new EventSource(`/api/hunts/${id}/events?start=${S.lastSeq + 1}`);
     es.onmessage = (m) => {
       let ev;
