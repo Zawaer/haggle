@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0d12">
+<title>haggle: your agent finds it, vets it, and haggles for it</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤝</text></svg>">
+</head>
+<body>
+<div class="bg-glow" aria-hidden="true"></div>
+
+<header id="hero" class="hero">
+  <div class="topbar">
+    <a class="logo" href="/" title="New hunt"><span class="logo-mark">h</span>haggle</a>
+    <div class="top-meta">
+      <span id="clock" class="chip chip-ghost mono hidden">0:00</span>
+      <span id="calls" class="chip chip-calls"><span class="spark">✦</span><b id="calls-n" class="mono">0</b> Gemini calls</span>
+    </div>
+  </div>
+
+  <div class="hero-body">
+    <h1 class="tagline">Your agent <em>finds</em> it, <em>vets</em> it, and <em>haggles</em> for it.</h1>
+    <form id="hunt-form" class="ask" autocomplete="off">
+      <textarea id="request" rows="2" spellcheck="false">I want a gaming PC under 8,000 SEK, RTX 3060+, 16 GB RAM, 1 TB SSD, Stockholm</textarea>
+      <button id="hunt-btn" type="submit" class="btn btn-primary btn-hunt"><span>Hunt</span><span class="arrow">→</span></button>
+    </form>
+    <p id="request-echo" class="request-echo hidden"></p>
+    <p class="hint" id="hint">Searches Blocket, Tradera &amp; Facebook Marketplace · nothing is sent to a seller without your approval</p>
+  </div>
+
+  <ol id="stepper" class="stepper" aria-label="Pipeline">
+    <li data-step="0"><span class="dot"></span><span class="lbl">Understand</span></li>
+    <li data-step="1"><span class="dot"></span><span class="lbl">Search</span></li>
+    <li data-step="2"><span class="dot"></span><span class="lbl">Read listings</span></li>
+    <li data-step="3"><span class="dot"></span><span class="lbl">Vet</span></li>
+    <li data-step="4"><span class="dot"></span><span class="lbl">Rank</span></li>
+    <li data-step="5"><span class="dot"></span><span class="lbl">Draft</span></li>
+    <li data-step="6"><span class="dot"></span><span class="lbl">Negotiate</span></li>
+    <li data-step="7"><span class="dot"></span><span class="lbl">Deal</span></li>
+  </ol>
+  <div id="status" class="status hidden"><span class="pulse-dot"></span><span id="status-text"></span></div>
+</header>
+
+<main id="main">
+  <section id="question" class="panel question hidden">
+    <div class="panel-kicker">Your agent has one question</div>
+    <p id="question-text" class="question-text"></p>
+    <form id="answer-form" class="ask ask-sm">
+      <input id="answer" type="text" placeholder="Type your answer…">
+      <button class="btn btn-primary" type="submit">Answer</button>
+    </form>
+  </section>
+
+  <section id="reqs" class="reqs hidden">
+    <div class="section-head"><h2>What you asked for</h2></div>
+    <div id="req-chips" class="req-chips"></div>
+    <div id="req-queries" class="req-queries"></div>
+  </section>
+
+  <section id="board-sec" class="hidden">
+    <div class="section-head">
+      <h2>Listings</h2>
+      <div class="counters">
+        <span class="counter"><b id="c-found" class="mono">0</b> found</span>
+        <span class="counter c-rej"><b id="c-rej" class="mono">0</b> rejected</span>
+        <span class="counter c-scam"><b id="c-scam" class="mono">0</b> scams flagged</span>
+        <span class="counter c-short"><b id="c-short" class="mono">0</b> shortlisted</span>
+      </div>
+    </div>
+    <div id="board" class="board"></div>
+    <details id="rejected" class="rejected hidden">
+      <summary><span class="rej-x">✕</span><span>Rejected (<span id="rej-n">0</span>)</span><span class="muted">· failed a hard requirement</span></summary>
+      <ul id="rej-list" class="rej-list"></ul>
+    </details>
+  </section>
+
+  <section id="approval" class="panel approval hidden">
+    <div class="section-head">
+      <h2>Approve outreach</h2>
+      <span class="lock-note">🔒 Nothing has been sent yet</span>
+    </div>
+    <p class="muted approval-sub">Your agent drafted an opening message for each shortlisted seller. Untick any you don't want contacted.</p>
+    <div id="drafts" class="drafts"></div>
+    <div class="approval-actions">
+      <button id="approve-btn" class="btn btn-primary btn-big">Approve &amp; send</button>
+    </div>
+  </section>
+
+  <section id="nego" class="hidden">
+    <div class="section-head">
+      <h2>Negotiating <span id="nego-count" class="muted"></span></h2>
+      <label class="switch" title="Show each side's private reasoning (the other side never sees it)">
+        <input id="thoughts-toggle" type="checkbox" checked>
+        <span class="track"><span class="knob"></span></span>
+        <span>🧠 Private thoughts</span>
+      </label>
+    </div>
+    <p class="muted nego-sub">All sellers in parallel. Budget cap, honesty and message limits are enforced in code, not prompts.</p>
+    <div id="panes" class="panes"></div>
+  </section>
+
+  <section id="handoff" class="hidden">
+    <div id="savings" class="savings"></div>
+    <div class="section-head"><h2 id="handoff-title">Your deals</h2></div>
+    <div id="deals" class="deals"></div>
+  </section>
+
+  <section id="error" class="panel error hidden"></section>
+</main>
+
+<footer class="foot">
+  <span>haggle · hackathon build</span>
+  <label class="replay-toggle" title="Replays a recorded real run: no API calls"><input id="replay" type="checkbox"> replay demo</label>
+</footer>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

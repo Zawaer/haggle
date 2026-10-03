@@ -29,7 +29,8 @@ class ReplayHunt(Hunt):
             wait = max(0.0, (ev["t"] - t_prev) / self.speed)
             await asyncio.sleep(min(wait, 3.0))
             t_prev = ev["t"]
-            data = {k: v for k, v in ev.items() if k not in ("seq", "t", "type")}
+            data = {k: v for k, v in ev.items() if k not in ("seq", "t", "type", "calls")}
+            self.budget.calls = max(self.budget.calls, ev.get("calls", 0))
             if ev["type"] == "listing" and ev["id"] in self.items:
                 self.items[ev["id"]].update({k: v for k, v in data.items() if k != "id"})
             if ev["type"] == "found":

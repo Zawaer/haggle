@@ -103,3 +103,28 @@ async def seller_turn(listing, thread, budget):
     prompt = f"CONVERSATION:\n{_transcript(thread, 'seller')}\n\nYour reply."
     return await ask_json(prompt, SELLER_SCHEMA, system=seller_system(listing), budget=budget,
                           model=config.FAST_MODEL)
+
+
+# ---------------------------------------------------------------- reading a real seller's reply
+
+READ_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "action": {"type": "string", "enum": ["counter", "accept", "decline", "reply"],
+                   "description": "accept = agrees to the buyer's latest offered price; counter = names a different price; "
+                                  "decline = refuses / item sold / ends it; reply = only answers or asks something."},
+        "price_sek": {"type": "number", "description": "The price the seller now stands at (the accepted price if accept). 0 if none."},
+        "summary": {"type": "string", "description": "One short line: what the seller said, in English."},
+    },
+    "required": ["action", "price_sek", "summary"],
+}
+
+
+async def read_seller(thread, seller_text, seller_price, budget):
+    """Interpret a free-text reply from a seller (possibly a human typing live) into an action + price."""
+    last_offer = next((m["price_sek"] for m in reversed(thread) if m["role"] == "buyer" and m.get("price_sek")), None)
+    prompt = (f"Conversation so far:\n{_transcript(thread, 'buyer')}\n\nBuyer's latest offer: "
+              f"{f'{last_offer:,.0f} SEK' if last_offer else 'none'}\nSeller's new message: {seller_text!r}"
+              f"{f' (price field: {seller_price} SEK)' if seller_price else ''}\nClassify the seller's message.")
+    return await ask_json(prompt, READ_SCHEMA, budget=budget, model=config.FAST_MODEL,
+                          system="You read second-hand marketplace chats in Swedish or English and classify the seller's reply.")

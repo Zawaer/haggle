@@ -25,6 +25,11 @@ from .llm import Budget
 HUNTS = {}
 
 
+def _short(text, n=110):
+    first = text.split(". ")[0].strip()
+    return first if len(first) <= n else first[: n - 1] + "…"
+
+
 class Hunt:
     def __init__(self, request):
         self.id = uuid.uuid4().hex[:8]
@@ -38,11 +43,16 @@ class Hunt:
         self.answer_future = None
         self.approved = asyncio.Event()
         self.started = time.time()
+        self.market = None
+        if config.MARKET_URL:
+            from .market_http import HttpMarket
+            self.market = HttpMarket()
         HUNTS[self.id] = self
 
     # ------------------------------------------------------------ events
     async def emit(self, type_, **data):
-        ev = {"seq": len(self.events), "t": round(time.time() - self.started, 2), "type": type_, **data}
+        ev = {"seq": len(self.events), "t": round(time.time() - self.started, 2), "type": type_,
+              "calls": self.budget.calls, **data}
         self.events.append(ev)
         async with self.cond:
             self.cond.notify_all()
@@ -56,7 +66,7 @@ class Hunt:
 
     async def phase_to(self, p):
         self.phase = p
-        await self.emit("phase", phase=p, calls=self.budget.calls)
+        await self.emit("phase", phase=p)
 
     def snapshot(self):
         return {"id": self.id, "request": self.request, "req": self.req, "phase": self.phase,
@@ -81,7 +91,10 @@ class Hunt:
         await self.emit("requirements", req=self.req)
 
         await self.phase_to("search")
-        found = marketplace.search(self.req["search_queries"])
+        if self.market:
+            found = await self.market.search(self.req["search_queries"])
+        else:
+            found = marketplace.search(self.req["search_queries"])
         await self.emit("status", text=f"Searched Blocket, Tradera and Facebook Marketplace with "
                                        f"{len(self.req['search_queries'])} queries: {len(found)} listings")
         for l in found:
@@ -167,17 +180,20 @@ class Hunt:
     async def _guard(self, lid, rule, detail):
         await self.emit("guardrail", id=lid, rule=rule, detail=detail)
 
-    async def _send(self, lid, role, text, price=None, thoughts=None, action=None):
+    async def _send(self, lid, role, text, price=None, thoughts=None, action=None, checks=None):
         it = self.items[lid]
         msg = {"role": role, "text": text, "price_sek": price, "thoughts": thoughts, "action": action,
-               "t": round(time.time() - self.started, 2)}
+               "t": round(time.time() - self.started, 2), "checks": checks or []}
         it["thread"].append(msg)
         await self.emit("message", id=lid, **msg)
 
     async def _negotiate(self, lid):
         it = self.items[lid]
-        l, full = it["listing"], marketplace.get(lid)
-        full = {**full, "_lang": l.get("_lang")}
+        l = it["listing"]
+        try:
+            full = {**marketplace.get(lid), "_lang": l.get("_lang")}
+        except StopIteration:  # listing only exists on the external marketplace
+            full = None
         bmax = self.req["budget_max_sek"]
         await self.set_state(lid, "negotiating")
         buyer_msgs = 0
@@ -203,23 +219,47 @@ class Hunt:
             # ---- learned specs can knock a listing out
             dropped = await self._apply_learned(lid, out.get("learned_specs") or {})
             price = out["offer_sek"] if out["action"] in ("offer", "accept") else None
-            await self._send(lid, "buyer", out["message"], price, out["private_thoughts"], out["action"])
+            checks = []
+            if price:
+                checks.append(f"≤ budget {bmax:,.0f} kr")
+            claim = out.get("claims_competing_offer_sek")
+            if claim:
+                src = next((o["listing"]["title"][:40] for oid, o in self.items.items() if oid != lid and o.get("seller_price")
+                            and o["seller_price"] <= claim * 1.001 and o["state"] in ("negotiating", "deal_offered")), None)
+                if src:
+                    checks.append(f"competing offer {claim:,.0f} kr verified ({src})")
+            checks.append("approved by user" if buyer_msgs == 0 else f"message {buyer_msgs + 1}/{config.MAX_MESSAGES_PER_SELLER}")
+            await self._send(lid, "buyer", out["message"], price, out["private_thoughts"], out["action"], checks=checks)
+            if self.market:
+                await self.market.send(lid, "buyer", out["message"], price)
+            elif full is None:
+                await self.set_state(lid, "error", reason="listing not in local mock")
+                return
             buyer_msgs += 1
             if dropped:
                 await self.set_state(lid, "dropped", reason=dropped)
                 return
             if out["action"] == "walk_away":
-                await self.set_state(lid, "walked_away", reason=out["private_thoughts"])
+                await self.set_state(lid, "walked_away", reason=_short(out["private_thoughts"]))
                 return
             if out["action"] == "accept" and it.get("seller_price") and out["offer_sek"] >= it["seller_price"] - 1:
                 return await self._deal(lid, it["seller_price"], out.get("pickup_or_shipping", ""))
 
-            # ---- seller replies (simulated human, slight delay for realism)
-            await asyncio.sleep(0.4 + random.random() * 1.2)
-            s = await negotiation.seller_turn(full, it["thread"], self.budget)
-            floor = full["hidden"].get("min_price_sek") or l["price_sek"]
-            if s["action"] in ("accept", "counter") and s["price_sek"] and s["price_sek"] < floor:
-                s["price_sek"], s["action"] = floor, "counter"  # sellers can't go below their hidden minimum
+            # ---- seller replies
+            if self.market:  # external marketplace: a human in the seller inbox, or seller_bot.py
+                got = await self.market.wait_seller(lid)
+                if got is None:
+                    await self.set_state(lid, "no_reply", reason="seller didn't reply in time")
+                    return
+                r = await negotiation.read_seller(it["thread"], got["text"], got["price_sek"], self.budget)
+                s = {"message": got["text"], "private_thoughts": got.get("thoughts") or f"(read by agent: {r['summary']})",
+                     "action": r["action"], "price_sek": r["price_sek"] or got["price_sek"] or 0}
+            else:  # built-in mock: simulated seller in-process, slight delay for realism
+                await asyncio.sleep(0.4 + random.random() * 1.2)
+                s = await negotiation.seller_turn(full, it["thread"], self.budget)
+                floor = full["hidden"].get("min_price_sek") or l["price_sek"]
+                if s["action"] in ("accept", "counter") and s["price_sek"] and s["price_sek"] < floor:
+                    s["price_sek"], s["action"] = floor, "counter"  # sellers can't go below their hidden minimum
             if s["action"] == "accept":
                 s["price_sek"] = price or s["price_sek"]
             if s.get("price_sek"):
@@ -267,7 +307,7 @@ class Hunt:
         deals = sorted((it for it in self.items.values() if it["state"] == "deal_offered"),
                        key=lambda it: (it["deal"]["price_sek"] - (it.get("score") or 0) * 20))
         await self.emit("handoff", ids=[it["id"] for it in deals],
-                        best=deals[0]["id"] if deals else None, calls=self.budget.calls)
+                        best=deals[0]["id"] if deals else None)
         await self.phase_to("awaiting_confirmation" if deals else "done")
 
     async def confirm(self, lid):
@@ -281,5 +321,7 @@ class Hunt:
             await self._send(o["id"], "buyer", "Tack för snabba svar! Min klient har tyvärr valt en annan dator. Lycka till med försäljningen!"
                              if sv else "Thanks for the quick replies! My client went with another PC, good luck with the sale!",
                              action="release")
+            if self.market:
+                await self.market.send(o["id"], "buyer", o["thread"][-1]["text"])
             await self.set_state(o["id"], "released")
         await self.phase_to("done")

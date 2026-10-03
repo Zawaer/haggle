@@ -27,3 +27,7 @@ MAX_PARALLEL_LLM = int(os.environ.get("HAGGLE_MAX_PARALLEL", "8"))
 MAX_LLM_CALLS_PER_HUNT = int(os.environ.get("HAGGLE_MAX_CALLS", "250"))  # stay far from "abuse" territory
 MAX_MESSAGES_PER_SELLER = 6     # buyer messages per negotiation thread
 SHORTLIST_SIZE = 5
+
+# External marketplace (teammate's mock site). Empty = use the built-in in-process mock.
+MARKET_URL = os.environ.get("HAGGLE_MARKET_URL", "").rstrip("/")
+HUMAN_REPLY_TIMEOUT = int(os.environ.get("HAGGLE_HUMAN_TIMEOUT", "180"))  # seconds to wait for a seller reply
