@@ -139,6 +139,7 @@
       case "guardrail": onGuardrail(ev); break;
       case "handoff": onHandoff(ev); break;
       case "watch": onWatch(ev); break;
+      case "notice": onNotice(ev.text); break;
       case "watch_hit": onWatchHit(ev); break;
       case "error": showError(ev.message); break;
     }
@@ -444,6 +445,13 @@
 
   // ------------------------------------------------------------------ watch mode
   const E2 = { watch: $("#watch"), watchState: $("#watch-state"), watchHits: $("#watch-hits"), postTest: $("#post-test") };
+
+  function onNotice(text) {
+    setStatus(text);
+    show(E.error, true);
+    E.error.classList.add("notice");
+    E.error.innerHTML = `<p>${esc(text)}</p><p class="muted small">Try a higher budget or looser specs, or just wait: watch mode is on.</p>`;
+  }
 
   function onWatch(ev) {
     S.watching = !!ev.active;

@@ -105,6 +105,8 @@ class Hunt:
         found = await self._search()
         where = "mockbay" if self.source == "mockbay" else "Blocket, Tradera and Facebook Marketplace"
         await self.emit("status", text=f"Searched {where} with {len(self.req['search_queries'])} queries: {len(found)} listings")
+        if not found:
+            return await self._nothing(f"No listings on the marketplace match \u201c{self.req['summary']}\u201d right now.")
         for l in found:
             self.items[l["id"]] = {"id": l["id"], "listing": l, "state": "found", "thread": []}
             await self.emit("found", id=l["id"], listing=l)
@@ -142,6 +144,18 @@ class Hunt:
         await self.phase_to("rank")
         pool = sorted((it for it in self.items.values() if it.get("score") is not None), key=lambda it: -it["score"])
         shortlist = pool[:config.SHORTLIST_SIZE]
+        if not shortlist:
+            fails = {}
+            for it in self.items.values():
+                for k, v in (it.get("verdicts") or {}).items():
+                    if v["status"] == "fail":
+                        fails[k] = fails.get(k, 0) + 1
+            top = max(fails, key=fails.get) if fails else None
+            why = {"gpu": "a fast enough GPU", "price": "a price near your budget", "ram": "enough RAM",
+                   "storage": "enough SSD storage", "type": "the right kind of item", "location": "pickup or shipping to you",
+                   "works": "being in working order"}.get(top, "all your requirements")
+            return await self._nothing(f"Read {len(self.items)} listings, but none met your requirements "
+                                       f"(most failed on {why}).")
         for it in shortlist:
             await self.set_state(it["id"], "shortlisted")
         await self.emit("shortlist", ids=[it["id"] for it in shortlist])
@@ -151,6 +165,12 @@ class Hunt:
 
         await asyncio.gather(*(self._draft(it) for it in shortlist))
         await self.phase_to("awaiting_approval")
+
+    async def _nothing(self, text):
+        """Nothing to negotiate: say so plainly and keep watching for new listings instead of stalling."""
+        await self.emit("notice", text=text + " Your agent will keep watching and tell you when something matches.")
+        await self.phase_to("done")
+        asyncio.ensure_future(self.watch())
 
     async def _draft(self, it):
         out = await negotiation.buyer_turn(self.req, it["listing"], it["verdicts"], [], "", self.budget)

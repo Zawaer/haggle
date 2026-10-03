@@ -490,3 +490,5 @@ body.running #mic-btn { display: none; }
 .hostlbl b { color: var(--ink); font-weight: 600; }
 .c-title .t a { color: inherit; text-decoration: none; }
 .c-title .t a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.error.notice { color: var(--ink); border-top-color: var(--ink); }
+.error.notice p { margin: .3rem 0; font-size: 1.1rem; }

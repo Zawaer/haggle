@@ -63,12 +63,20 @@ def normalize(x):
 
 
 async def search(queries, limit=40):
+    """mockbay's search needs every word to match, so a query that finds nothing is retried with fewer
+    words ("macbook air m1" -> "macbook air" -> "macbook"). No category filter: vetting removes the noise."""
     seen, out = set(), []
     async with httpx.AsyncClient(base_url=BASE, timeout=15) as http:
         for q in queries:
-            r = await http.get("/api/listings", params={"q": q, "category": "computers"})
-            r.raise_for_status()
-            for x in r.json().get("listings", []):
+            words = q.split()
+            while words:
+                r = await http.get("/api/listings", params={"q": " ".join(words)})
+                r.raise_for_status()
+                got = r.json().get("listings", [])
+                if got:
+                    break
+                words = words[:-1]
+            for x in got if words else []:
                 if x["id"] not in seen:
                     seen.add(x["id"])
                     out.append(normalize(x))
