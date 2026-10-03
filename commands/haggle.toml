@@ -1,0 +1,9 @@
+description = "Find a used item or continue a Haggle hunt."
+prompt = """
+Use the haggle skill and the available haggle MCP tools for the request below.
+Activate the skill if it is not loaded. If no request is provided, ask what item the user wants,
+their maximum budget in SEK, and their pickup city or shipping preference in one short message.
+If a hunt is already in progress, continue it instead of starting another.
+
+User request: {{args}}
+"""

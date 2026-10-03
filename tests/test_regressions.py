@@ -417,7 +417,7 @@ class IntegrationTests(Base):
         h = HUNTS[result["hunt_id"]]
         self.assertEqual(h.owner, "other")
         check.assert_called_once_with(HUNTS, "other")
-        wait.assert_awaited_once_with(h, 75)
+        wait.assert_awaited_once_with(h, 30)
         self.assertTrue(result["dashboard_url"].endswith("/?h=" + h.id))
 
     async def test_usage_limits_keep_saved_hunts_and_enforce_owner_quota(self):

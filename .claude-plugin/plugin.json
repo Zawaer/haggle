@@ -1,6 +1,6 @@
 {
   "name": "haggle",
-  "version": "1.0.0",
+  "version": "1.3.0",
   "description": "Find, vet and negotiate second-hand products on mockbay, with user approval before outreach and deal confirmation.",
   "author": {
     "name": "Zawaer"
@@ -10,7 +10,8 @@
   "mcpServers": {
     "haggle": {
       "type": "http",
-      "url": "https://haggle-p61s.onrender.com/mcp/"
+      "url": "https://haggle-p61s.onrender.com/mcp/",
+      "timeout": 120000
     }
   }
 }

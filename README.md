@@ -37,6 +37,9 @@ Add `?replay=1` to watch a recorded hunt.
 **From your AI chat (MCP):** connect haggle and just ask for what you want.
 
 ```bash
+# Gemini CLI (extension: MCP connection + shopping skill + /haggle command)
+gemini extensions install https://github.com/Zawaer/haggle
+
 # Claude Code (plugin: MCP connection + shopping skill)
 claude plugin marketplace add Zawaer/haggle
 claude plugin install haggle@haggle-marketplace --scope user
@@ -52,7 +55,7 @@ Then ask:
 > "Use haggle to find me a used gaming PC under 8,000 kr in Stockholm, at least an RTX 3060."
 
 Your agent starts a hunt, sends you a link to watch it live, and asks you before contacting sellers
-and before confirming a deal.
+and before confirming a deal. [Setup, updates and troubleshooting](docs/mcp.md).
 
 ## Tech
 

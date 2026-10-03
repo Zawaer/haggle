@@ -40,6 +40,12 @@ class Hunt:
         self.owner = owner
         self.clarified = clarified  # questions were already asked (web card or the agent's skill): never ask again
         self.closed = False
+        self.request_id = ""
+        self.mcp_client = ""
+        self.recovery_task = None
+        self.confirmation_task = None
+        self.confirmation_id = None
+        self.finalizing = False
         self.tasks = {}
         self.watch_task = None
         self.lock = asyncio.Lock()
@@ -93,6 +99,7 @@ class Hunt:
         if getattr(self, "suspending", False):
             return
         storage.save("hunt", self.id, {"id": self.id, "owner": self.owner, "request": self.request,
+                     "request_id": self.request_id, "mcp_client": self.mcp_client, "clarified": self.clarified,
                      "req": self.req, "items": self.items, "events": self.events, "phase": self.phase,
                      "source": self.source, "market_ref": self.market_ref, "closed": self.closed,
                      "started": self.started, "watching": self.watching, "watch_deadline": self.watch_deadline,
@@ -105,7 +112,20 @@ class Hunt:
         async with self.lock:
             if self.closed or self.phase not in ("paused", "error"):
                 raise ValueError("this hunt does not need recovery")
-            await self.phase_to("recovering")
+            self.phase = "recovering"
+        try:
+            await self.emit("phase", phase="recovering")
+            await self._recover()
+        except asyncio.CancelledError:
+            if not self.closed:
+                await self.phase_to("paused")
+            raise
+        except Exception as e:
+            self.error = str(e)
+            await self.phase_to("error")
+            await self.emit("error", message=str(e))
+
+    async def _recover(self):
         interrupted = [it for it in self.items.values() if it["state"] == "interrupted"]
         if interrupted:
             for it in interrupted:
@@ -613,7 +633,8 @@ async def restore_hunts():
             continue
         h = Hunt(rec["request"], rec.get("owner", "local"))
         HUNTS.pop(h.id)
-        for key in ("id", "req", "items", "events", "phase", "source", "market_ref", "closed", "started", "watch_deadline"):
+        for key in ("id", "req", "items", "events", "phase", "source", "market_ref", "closed", "started", "watch_deadline",
+                    "request_id", "mcp_client", "clarified"):
             if key in rec:
                 setattr(h, key, rec[key])
         HUNTS[hid] = h
@@ -632,6 +653,12 @@ async def restore_hunts():
                 h.closed = True
                 await h.phase_to("error")
                 await h.emit("notice", text="Original marketplace endpoint is missing. Start a new hunt; no messages were resent.")
+        elif h.source == "browser" and not h.closed:
+            # Browser login cookies and chat tabs are not durable. Never resume these threads through
+            # the in-process seller simulator after a restart.
+            h.closed = True
+            await h.phase_to("done")
+            await h.emit("notice", text="Browser session ended after a restart. Start a new hunt; no messages were resent.")
         if rec.get("replay") and not h.closed:
             # A recording is not a live hunt and must never resume with real model calls.
             h.closed = True
