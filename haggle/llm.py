@@ -7,6 +7,7 @@ call budget (Google's hackathon accounts flag "thousands of requests" as abuse).
 import asyncio
 import json
 import logging
+import threading
 import time
 
 from google import genai
@@ -15,14 +16,18 @@ from . import config
 
 log = logging.getLogger("haggle.llm")
 _client = None
+_client_lock = threading.Lock()
 _sem = asyncio.Semaphore(config.MAX_PARALLEL_LLM)
 
 
 def client():
+    """One shared client. Created under a lock: threads racing to create it used to replace each other's
+    client, and the garbage-collected one closed its HTTP connection mid-request."""
     global _client
-    if _client is None:
-        _client = genai.Client()
-    return _client
+    with _client_lock:
+        if _client is None:
+            _client = genai.Client()
+        return _client
 
 
 class Budget:
