@@ -150,7 +150,7 @@
 
   ## Architecture
 
-  ![Haggle multi-party negotiation architecture](docs/architecture.jpg)
+  ![Haggle multi-party negotiation architecture](docs/Architecture.jpg)
 
   ## Tech
 
