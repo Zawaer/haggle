@@ -383,6 +383,7 @@ class PersistenceTests(Base):
         h, lid = fixture(owner="other"); h.market = None
         tid = inbox.open_thread(lid, h.items[lid]["listing"], h.id)
         with TestClient(app) as c:
+            self.assertEqual(c.get("/healthz").json(), {"status": "ok"})
             self.assertEqual(c.get(f"/api/hunts/{h.id}").status_code, 401)
             self.assertEqual(c.post("/api/login", json={"token": "wrong"}).status_code, 401)
             self.assertEqual(c.post("/api/login", json={"token": "local-test-token-123"}).status_code, 200)
@@ -404,6 +405,37 @@ class PersistenceTests(Base):
 
 
 class IntegrationTests(Base):
+    async def test_mcp_start_keeps_owner_limits_link_and_bounded_wait(self):
+        from types import SimpleNamespace
+        from haggle import mcp_server
+        ctx = SimpleNamespace(request_context=SimpleNamespace(request=SimpleNamespace(state=SimpleNamespace(owner="other"))))
+        with patch.object(mcp_server.limits, "check_new_hunt") as check, \
+             patch.object(Hunt, "run", AsyncMock()), \
+             patch.object(mcp_server, "_wait", AsyncMock()) as wait:
+            result = await mcp_server.start_hunt("gaming PC", wait_seconds=1000, ctx=ctx)
+        h = HUNTS[result["hunt_id"]]
+        self.assertEqual(h.owner, "other")
+        check.assert_called_once_with(HUNTS, "other")
+        wait.assert_awaited_once_with(h, 75)
+        self.assertTrue(result["dashboard_url"].endswith("/?h=" + h.id))
+
+    async def test_usage_limits_keep_saved_hunts_and_enforce_owner_quota(self):
+        from haggle import limits
+        from collections import deque
+        hunts = {}
+        for i in range(85):
+            h = Hunt("saved", owner="local")
+            h.phase = "paused"
+            hunts[h.id] = h
+        with patch.object(limits, "_starts", deque()), patch.object(limits, "_calls", deque()), \
+             patch.object(limits, "PER_CLIENT_HOUR", 1):
+            limits.check_new_hunt(hunts, "local")
+            self.assertEqual(len(hunts), 85)
+            with self.assertRaises(limits.LimitError):
+                limits.check_new_hunt(hunts, "local")
+            limits.check_new_hunt(hunts, "other")
+
+
     async def wait_phase(self, h, phase):
         async def wait():
             while h.phase != phase:

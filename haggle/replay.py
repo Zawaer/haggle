@@ -6,6 +6,8 @@ from .orchestrator import Hunt
 
 
 class ReplayHunt(Hunt):
+    is_replay = True  # recordings make no provider calls
+
     def __init__(self, path=DATA / "demo_run.json", speed=1.0, owner="local"):
         rec = json.loads(path.read_text())
         super().__init__(rec["request"], owner=owner)

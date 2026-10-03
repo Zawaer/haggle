@@ -14,6 +14,33 @@ strangers. haggle turns one sentence into a negotiated deal:
 
 Built at the {Tech: Europe} × Google DeepMind Agentic AI Hack, Stockholm, 3 October 2026.
 
+haggle is an **MCP server**: plug it into Gemini CLI, Claude Code, Codex or Cursor and your agent can shop
+second-hand for you. It also has a live web dashboard that shows every hunt (whether an agent or a person
+started it), with the negotiations running side by side.
+
+## Try it
+
+**Live demo:** PUBLIC_URL (the dashboard; `?replay=1` replays a recorded run with no API calls).
+It's a free instance, so the first request after a quiet spell can take about a minute to wake it up.
+
+**From your agent** (MCP, streamable HTTP): configure an `Authorization: Bearer <token>`
+header with the operator-provided access token (see the JSON configuration below).
+
+```bash
+# Gemini CLI
+gemini mcp add --scope user --transport http --timeout 600000 haggle PUBLIC_URL/mcp/
+# Claude Code
+claude mcp add --transport http haggle PUBLIC_URL/mcp/
+```
+
+Then ask: *"Use haggle to find me a used gaming PC under 8,000 kr in Stockholm, at least an RTX 3060."*
+The agent starts a hunt and gives you a dashboard link. It shows you the shortlist and the drafted
+messages, and asks before contacting sellers. Later it shows the deals and asks which one to confirm.
+Everything is simulated: mockbay listings and simulated sellers. No real purchases or messages.
+
+Tools: `start_hunt`, `hunt_status`, `answer_question`, `approve_outreach`, `confirm_deal`, `resume_hunt`. Each call
+waits at most ~75 s for the next decision point; the agent polls `hunt_status` until then.
+
 ## What the agent does
 
 ```
@@ -113,7 +140,7 @@ between two agents.
     low thinking for speed)
   - `gemini-3.5-flash-lite`: simulated sellers, reading human sellers' replies, fallback model on 503s
   - `gemini-3.5-transcribe`: voice input (custom vocabulary for hardware names and Stockholm places)
-- Python 3.11, FastAPI, Server-Sent Events for the live UI, asyncio for parallel threads
+- Python 3.14, FastAPI, Server-Sent Events for the live UI, asyncio for parallel threads
 - Vanilla HTML/CSS/JS frontend (no build step)
 - **Matrix OS**: haggle runs on our Matrix cloud computer (the always-on machine that keeps hunting and
   watching), viewed through `matrix forward 3123`
@@ -121,7 +148,7 @@ between two agents.
   chat history older than the last two messages are compressed before every buyer turn; latest messages stay
   verbatim; extraction is never compressed (condense is lossy). Shown as "condense: −X% selected-text characters".
   Set `CONDENSE_AUTH_TOKEN` in `.env`; `HAGGLE_CONDENSE=0` turns it off.
-- **MCP** server so other agents can drive haggle
+- **MCP** server (Python MCP SDK, streamable HTTP), tested with Gemini CLI
 
 ## Run it
 
@@ -153,15 +180,29 @@ Approving also works after the first handoff, for listings found by watch mode. 
 `watch {active, interval, text}`, `watch_hit {id, text}`, and `found` carries `new: true` for listings
 found by watch mode.
 
-## MCP: use haggle from any agent (e.g. Matrix OS)
+## MCP details
 
 The server also speaks MCP (streamable HTTP) at **`/mcp/`**, sharing hunts with the web UI, so an authenticated user can open a hunt started from an agent chat in the browser. Tools: `start_hunt`, `hunt_status`,
 `answer_question`, `approve_outreach`, `confirm_deal`, `resume_hunt`. The agent must get the user's OK before approving
 outreach or confirming a deal.
 
+Tool results include `dashboard_url`; set `HAGGLE_PUBLIC_URL` when it cannot be detected.
+
 ```json
 { "mcpServers": { "haggle": { "type": "http", "url": "http://localhost:3123/mcp/", "headers": { "Authorization": "Bearer YOUR_ACCESS_TOKEN" } } } }
 ```
+
+## Hosting
+
+- **Public demo: Render.** `render.yaml` is a one-click blueprint:
+  https://render.com/deploy?repo=https://github.com/Zawaer/haggle (Render asks for `GEMINI_API_KEY` and
+  `CONDENSE_AUTH_TOKEN`, and `HAGGLE_ACCESS_TOKEN`; they're never stored in the repo).
+  The free plan has ephemeral storage: restarts may lose saved hunts. Use a persistent disk
+  and point `HAGGLE_DB` at it for durable recovery. `/healthz` is public; app and API routes require authentication.
+  Public abuse limits live in `haggle/limits.py`: max 4 live hunts at once, 40 per hour (8 per authenticated user),
+  and 5,000 Gemini calls per day. Replay is always available.
+- **Personal always-on instance: Matrix OS.** `scripts/run.sh` on our Matrix cloud computer; it keeps
+  hunting and watching while the laptop is closed.
 
 ## Layout
 
@@ -175,6 +216,8 @@ haggle/orchestrator.py  state machine, guardrails, parallel negotiations, event 
 haggle/replay.py        replays a recorded run (offline fallback)
 haggle/server.py        FastAPI + SSE
 haggle/mcp_server.py    MCP tools for other agents (mounted at /mcp/)
+haggle/limits.py        abuse limits for the public deployment
+render.yaml             Render blueprint (public demo)
 haggle/market_http.py   client for the external mock marketplace site
 seller_bot.py           plays sellers on the external marketplace (unless a human takes over)
 tools/reference_market.py  minimal reference implementation of the marketplace API

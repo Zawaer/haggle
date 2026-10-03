@@ -125,6 +125,8 @@ class Hunt:
         try:
             await self._discover()
         except Exception as e:  # surface failures in the UI instead of dying silently
+            self.phase = "error"
+            self.error = str(e)
             await self.emit("error", message=str(e))
             await self.phase_to("error")
 

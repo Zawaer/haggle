@@ -17,6 +17,7 @@ from fastapi.responses import FileResponse, StreamingResponse, JSONResponse, Red
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+from . import limits
 from .config import ROOT
 from . import auth, inbox
 from .orchestrator import HUNTS, Hunt, restore_hunts
@@ -79,7 +80,7 @@ async def access_control(request: Request, call_next):
     origin = request.headers.get("origin")
     if request.method not in ("GET", "HEAD", "OPTIONS") and origin and origin.rstrip("/") != str(request.base_url).rstrip("/"):
         return JSONResponse({"detail": "cross-origin writes are not allowed"}, status_code=403)
-    if path == "/login" or path.startswith("/static/") or path == "/api/login":
+    if path == "/healthz" or path == "/login" or path.startswith("/static/") or path == "/api/login":
         return await call_next(request)
     owner = auth.identity(request)
     if not owner:
@@ -156,8 +157,12 @@ async def start(body: Req, request: Request):
         from .replay import ReplayHunt
         h = ReplayHunt(owner=request.state.owner)
     else:
-        if not body.request:
-            raise HTTPException(400, "request must not be empty")
+        if not body.request.strip():
+            raise HTTPException(400, "Describe what you want to buy.")
+        try:
+            limits.check_new_hunt(HUNTS, request.state.owner)
+        except limits.LimitError as e:
+            raise HTTPException(429, str(e))
         h = Hunt(body.request.strip(), owner=request.state.owner)
     _bg(h.run())
     return {"id": h.id}
@@ -290,6 +295,11 @@ async def post_listing(body: NewListing):
                           "language": "sv", "is_scam": False, "scam_signals": [], "expected_verdict": "match",
                           "notes": "posted live during the demo"}})
     return {"id": lid}
+
+
+@app.get("/healthz")
+async def health():
+    return {"status": "ok"}
 
 
 @app.get("/api/info")
