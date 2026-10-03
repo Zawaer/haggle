@@ -9,6 +9,12 @@ import time
 from .config import ROOT
 
 
+def required():
+    """Login is OFF by default: the public demo is open (owner "local" for everyone, limits per IP).
+    Turn it on with HAGGLE_REQUIRE_LOGIN=1 (single token: HAGGLE_ACCESS_TOKEN) or HAGGLE_USERS (per-user tokens)."""
+    return os.environ.get("HAGGLE_REQUIRE_LOGIN") == "1" or bool(os.environ.get("HAGGLE_USERS"))
+
+
 def users():
     configured = os.environ.get("HAGGLE_USERS")
     if configured:

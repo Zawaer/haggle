@@ -20,11 +20,10 @@ started it), with the negotiations running side by side.
 
 ## Try it
 
-**Live demo:** https://haggle-p61s.onrender.com (sign in with the access token from our submission;
-`?replay=1` replays a recorded run with no API calls). It's a free instance, so the first request after a
+**Live demo:** https://haggle-p61s.onrender.com (open, no sign-in; `?replay=1` replays a recorded run with no API calls). It's a free instance, so the first request after a
 quiet spell can take about a minute to wake it up.
 
-**Gemini CLI: one-command install** (MCP server + skill; it asks for the access token):
+**Gemini CLI: one-command install** (MCP server + skill):
 
 ```bash
 gemini extensions install https://github.com/Zawaer/haggle
@@ -33,8 +32,7 @@ gemini extensions install https://github.com/Zawaer/haggle
 **Claude Code** (same skill, same MCP server):
 
 ```bash
-claude mcp add --transport http haggle https://haggle-p61s.onrender.com/mcp/ \
-  --header "Authorization: Bearer <access token>"
+claude mcp add --transport http haggle https://haggle-p61s.onrender.com/mcp/
 git clone https://github.com/Zawaer/haggle && mkdir -p ~/.claude/skills && cp -r haggle/skills/haggle ~/.claude/skills/
 ```
 
@@ -199,7 +197,7 @@ outreach or confirming a deal.
 Tool results include `dashboard_url`; set `HAGGLE_PUBLIC_URL` when it cannot be detected.
 
 ```json
-{ "mcpServers": { "haggle": { "type": "http", "url": "http://localhost:3123/mcp/", "headers": { "Authorization": "Bearer YOUR_ACCESS_TOKEN" } } } }
+{ "mcpServers": { "haggle": { "type": "http", "url": "http://localhost:3123/mcp/" } } }
 ```
 
 ## Hosting
@@ -243,9 +241,10 @@ Oskar, Songhua, Toivo, Wilmer, Rene.
 
 ## Authentication, storage and recovery
 
-The server now requires authentication for the app, REST API and MCP. On first startup it writes a
-random access token to `runs/access-token` (owner-readable only). Open `/login` and paste that token.
-Alternatively set `HAGGLE_ACCESS_TOKEN`, or `HAGGLE_USERS` to a JSON object mapping usernames to unique
+The public demo is open: no sign-in for the app, REST API or MCP (everyone shares one owner; the abuse
+limits in `haggle/limits.py` apply per IP). Login is opt-in: set `HAGGLE_REQUIRE_LOGIN=1` and the server
+requires an access token for everything (it writes a random one to `runs/access-token`, owner-readable
+only; open `/login` and paste it). Alternatively set `HAGGLE_ACCESS_TOKEN`, or `HAGGLE_USERS` to a JSON object mapping usernames to unique
 random tokens (at least 16 characters). Each user's hunts and inboxes are private to that user. Browser
 sessions use HttpOnly, same-site cookies; REST/MCP clients send `Authorization: Bearer <token>`.
 Use HTTPS when exposing the app beyond localhost. The demo seller inbox uses the same authenticated

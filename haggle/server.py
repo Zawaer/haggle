@@ -81,6 +81,13 @@ async def access_control(request: Request, call_next):
     origin = request.headers.get("origin")
     if request.method not in ("GET", "HEAD", "OPTIONS") and origin and origin.rstrip("/") != str(request.base_url).rstrip("/"):
         return JSONResponse({"detail": "cross-origin writes are not allowed"}, status_code=403)
+    fwd = request.headers.get("x-forwarded-for", "")
+    request.state.client = fwd.split(",")[0].strip() or (request.client.host if request.client else "?")
+    if not auth.required():  # open demo: no login, everyone shares owner "local"; abuse limits are per IP
+        if path == "/login":
+            return RedirectResponse("/", status_code=303)
+        request.state.owner = "local"
+        return await call_next(request)
     if path == "/healthz" or path == "/login" or path.startswith("/static/") or path == "/api/login":
         return await call_next(request)
     owner = auth.identity(request)
@@ -177,7 +184,7 @@ async def start(body: Req, request: Request):
         if not body.request.strip():
             raise HTTPException(400, "Describe what you want to buy.")
         try:
-            limits.check_new_hunt(HUNTS, request.state.owner)
+            limits.check_new_hunt(HUNTS, request.state.client)
         except limits.LimitError as e:
             raise HTTPException(429, str(e))
         text = pipeline.with_answers(body.request, [a.model_dump() for a in body.answers])
@@ -190,7 +197,7 @@ async def start(body: Req, request: Request):
 async def clarify(body: ClarifyReq, request: Request):
     """Questions to ask before a hunt: {ready, summary, questions: [{id, question, options}]}."""
     try:
-        limits.check_clarify(request.state.owner)
+        limits.check_clarify(request.state.client)
     except limits.LimitError as e:
         raise HTTPException(429, str(e))
     from .llm import Budget

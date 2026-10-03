@@ -9,8 +9,6 @@ services:
     startCommand: uvicorn haggle.server:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /healthz
     envVars:
-      - key: HAGGLE_ACCESS_TOKEN
-        sync: false
       - key: GEMINI_API_KEY
         sync: false
       - key: CONDENSE_AUTH_TOKEN

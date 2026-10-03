@@ -52,6 +52,12 @@ def _owner(ctx):
     return request.state.owner
 
 
+def _client(ctx):
+    """Who to rate-limit: the caller's IP (with login off, every caller is owner "local")."""
+    request = ctx.request_context.request if ctx is not None else None
+    return getattr(getattr(request, "state", None), "client", None) or _owner(ctx)
+
+
 def _owned(hid, ctx):
     h = HUNTS.get(hid)
     return h if h and h.owner == _owner(ctx) else None
@@ -108,7 +114,7 @@ async def clarify_request(request: str, ctx: Context = None) -> dict:
         return {"error": "describe what to buy"}
     owner = _owner(ctx)
     try:
-        limits.check_clarify(owner)
+        limits.check_clarify(_client(ctx))
     except limits.LimitError as e:
         return {"error": str(e)}
     return await pipeline.clarify(request.strip()[:2000], Budget(cap=4))
@@ -125,7 +131,7 @@ async def start_hunt(request: str, wait_seconds: int = 60, ctx: Context = None) 
         return {"error": "describe what to buy"}
     owner = _owner(ctx)
     try:
-        limits.check_new_hunt(HUNTS, owner)
+        limits.check_new_hunt(HUNTS, _client(ctx))
     except limits.LimitError as e:
         return {"error": str(e)}
     h = Hunt(request.strip()[:2000], owner=owner, clarified=True)

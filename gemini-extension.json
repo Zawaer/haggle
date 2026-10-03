@@ -5,16 +5,7 @@
   "mcpServers": {
     "haggle": {
       "httpUrl": "https://haggle-p61s.onrender.com/mcp/",
-      "headers": { "Authorization": "Bearer ${HAGGLE_TOKEN}" },
       "timeout": 600000
     }
-  },
-  "settings": [
-    {
-      "name": "haggle access token",
-      "description": "Access token for the haggle server (the team gives you this).",
-      "envVar": "HAGGLE_TOKEN",
-      "sensitive": true
-    }
-  ]
+  }
 }
