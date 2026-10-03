@@ -138,6 +138,8 @@
       case "message": onMessage(ev); break;
       case "guardrail": onGuardrail(ev); break;
       case "handoff": onHandoff(ev); break;
+      case "watch": onWatch(ev); break;
+      case "watch_hit": onWatchHit(ev); break;
       case "error": showError(ev.message); break;
     }
   }
@@ -215,6 +217,7 @@
   function onFound(ev) {
     const it = S.items[ev.id] || (S.items[ev.id] = { id: ev.id, state: "found" });
     it.listing = ev.listing;
+    if (ev.new) it.isNew = true;
     if (!S.order.includes(ev.id)) S.order.push(ev.id);
     show(E.boardSec, true);
     renderCard(ev.id);
@@ -287,7 +290,7 @@
         <span class="c-n mono"></span>
         <span class="c-src ${cls}">${name}</span>
         <span class="c-title">
-          <span class="t" title="${esc(l.title)}">${esc(l.title)}</span>
+          <span class="t" title="${esc(l.title)}">${it.isNew ? `<span class="newtag mono">new</span> ` : ""}${esc(l.title)}</span>
           <span class="sub">${sub}</span>
           <span class="specs mono hidden"></span>
           <span class="why"></span>
@@ -376,6 +379,7 @@
   // ------------------------------------------------------------------ approval (outbox)
   function onDraft(ev) {
     S.drafts[ev.id] = ev;
+    if (S.items[ev.id]?.isNew) { renderWatchHit(ev.id); return; }
     show(E.approval, true);
     E.approveBtn.disabled = S.phase !== "awaiting_approval";
     if (S.phase !== "awaiting_approval") E.approveBtn.textContent = "Drafting…";
@@ -436,6 +440,69 @@
     E.approveBtn.textContent = "Sending…";
     try { await api(`/api/hunts/${S.id}/approve`, { ids }); S.approved = true; }
     catch (e) { showError(`Approve failed: ${e.message}`); updateApproveBtn(); }
+  });
+
+  // ------------------------------------------------------------------ watch mode
+  const E2 = { watch: $("#watch"), watchState: $("#watch-state"), watchHits: $("#watch-hits"), postTest: $("#post-test") };
+
+  function onWatch(ev) {
+    S.watching = !!ev.active;
+    show(E2.watch, true);
+    E2.watch.classList.toggle("on", S.watching);
+    E2.watchState.textContent = S.watching ? `watching · every ${ev.interval || 20} s` : "stopped";
+    show(E2.postTest, S.watching && !S.replay);
+    if (!S.watching && !E2.watchHits.children.length) show(E2.watch, false);
+  }
+
+  function onWatchHit(ev) {
+    if (!S.shortlist.includes(ev.id)) S.shortlist.push(ev.id);
+    renderCard(ev.id);
+    updateCounters();
+    renderWatchHit(ev.id, ev.text);
+    scrollToEl(E2.watch);
+  }
+
+  function renderWatchHit(id, text) {
+    const it = S.items[id] || {};
+    const l = it.listing || {};
+    const d = S.drafts[id];
+    if (!d || it.state !== "shortlisted") return;
+    show(E2.watch, true);
+    const offer = d.offer_sek ? `opening offer <b class="money">${kr(d.offer_sek)}</b>` : "asks a question first";
+    const node = h(`<div class="whit" id="whit-${esc(id)}">
+      <div class="draft-to mono">New listing · ${esc(SRC(l.source || "")[1])} · ${esc(l.location || "")} · asking ${kr(l.price_sek)} <span class="arr">→</span> ${offer}</div>
+      <div class="draft-title">${esc(l.title || id)}</div>
+      <blockquote class="draft-msg">${esc(d.message)}</blockquote>
+      ${d.private_thoughts ? `<p class="thought"><span class="tl">reasoning:</span> ${esc(d.private_thoughts)}</p>` : ""}
+      <div class="whit-act"><button class="btn btn-ink" data-id="${esc(id)}">Approve and negotiate</button><span class="muted small">Vetted: ${esc(it.verdict || "match")}, risk ${it.risk ?? 0}</span></div>
+    </div>`);
+    const old = document.getElementById(`whit-${id}`);
+    if (old) old.replaceWith(node); else E2.watchHits.prepend(node);
+  }
+
+  E2.watchHits.addEventListener("click", async (e) => {
+    const b = e.target.closest("button[data-id]");
+    if (!b || !S.id) return;
+    b.disabled = true; b.textContent = "Sending…";
+    try {
+      await api(`/api/hunts/${S.id}/approve`, { ids: [b.dataset.id] });
+      const w = b.closest(".whit"); w.classList.add("sent");
+      b.replaceWith(h(`<span class="mono small">✓ Approved. Negotiating below.</span>`));
+    } catch (err) { showError(`Approve failed: ${err.message}`); b.disabled = false; b.textContent = "Approve and negotiate"; }
+  });
+
+  const TEST_LISTINGS = [
+    { title: "Speldator RTX 3060 Ti / Ryzen 5 5600 / 16GB / 1TB NVMe", price_sek: 6800, location: "Solna, Stockholm", min_price_sek: 6000,
+      description: "Säljer min speldator, funkar perfekt. RTX 3060 Ti, Ryzen 5 5600, 16 GB DDR4, 1 TB NVMe SSD. Hämtas i Solna, kan mötas upp i stan. Pris kan diskuteras lite." },
+    { title: "Gaming PC RX 6700 XT, 16GB RAM, 1TB SSD", price_sek: 7400, location: "Nacka, Stockholm", min_price_sek: 6600,
+      description: "Selling my gaming PC because I'm moving. RX 6700 XT, Ryzen 5 3600, 16GB RAM, 1TB SSD. Pickup in Nacka, open to reasonable offers." },
+  ];
+  E2.postTest.addEventListener("click", async () => {
+    const t = TEST_LISTINGS[(S.posted = (S.posted || 0) + 1) % TEST_LISTINGS.length];
+    E2.postTest.disabled = true;
+    try { await api("/api/market/listings", t); setStatus(`Posted “${t.title}” to the marketplace. Your agent will spot it on its next check.`); }
+    catch (err) { showError(`Couldn't post: ${err.message}`); }
+    finally { setTimeout(() => { E2.postTest.disabled = false; }, 1500); }
   });
 
   // ------------------------------------------------------------------ negotiation transcripts
@@ -517,7 +584,7 @@
 
   function onGuardrail(ev) {
     const pane = ensurePane(ev.id);
-    const name = { budget_cap: "budget cap", false_claim: "false claim blocked", message_limit: "message limit" }[ev.rule] || String(ev.rule || "guardrail").replace(/_/g, " ");
+    const name = { budget_cap: "budget cap", false_claim: "false claim blocked", message_limit: "message limit", untrusted_input: "untrusted seller input" }[ev.rule] || String(ev.rule || "guardrail").replace(/_/g, " ");
     appendChat(pane, h(`<div class="rule mono"><b>RULE</b><span>${esc(name)} — ${esc(ev.detail)} <span class="dim">(enforced in code)</span></span></div>`));
   }
 

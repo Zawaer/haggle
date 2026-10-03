@@ -464,3 +464,17 @@ body.hide-thoughts .thought { display: none; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* ---- watch mode ---- */
+.watch-state { margin: 0; color: var(--mute); font-size: .9rem; }
+.watch.on .watch-state::before { content: ""; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); margin-right: 8px; vertical-align: 1px; }
+.watch-sub { margin: 0 0 18px; color: var(--mute); max-width: 62ch; }
+.watch-hits { display: grid; gap: 14px; }
+.whit { border: 1px solid var(--rule-2); border-left: 3px solid var(--accent); background: var(--paper-2); padding: 16px 18px; animation: fadein .2s var(--ease); }
+.whit.sent { border-left-color: var(--ink); opacity: .75; }
+.whit-act { display: flex; gap: 14px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
+.newtag { display: inline-block; font-size: .68rem; letter-spacing: .04em; color: var(--paper); background: var(--accent); padding: 1px 5px; border-radius: 2px; vertical-align: 2px; text-transform: uppercase; }
+.linkish { background: none; border: 0; padding: 0; color: var(--mute); font-size: .82rem; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; margin-right: 18px; }
+.linkish:hover { color: var(--ink); }
+.linkish:disabled { opacity: .4; cursor: default; }
+@media (prefers-reduced-motion: reduce) { .whit { animation: none; } }

@@ -118,11 +118,21 @@
     <div id="deals" class="deals"></div>
   </section>
 
+  <section id="watch" class="sec watch hidden">
+    <div class="sec-head">
+      <h2>Still looking</h2>
+      <p id="watch-state" class="mono watch-state"></p>
+    </div>
+    <p class="watch-sub">Your agent keeps checking the marketplace from your always-on Matrix OS computer. New matches are vetted and drafted here, and nothing is sent until you approve.</p>
+    <div id="watch-hits" class="watch-hits"></div>
+  </section>
+
   <section id="error" class="sec error hidden"></section>
 </main>
 
 <footer class="foot">
   <span>haggle · hackathon build · Stockholm</span>
+  <button id="post-test" class="linkish mono hidden" title="Demo: publish a new matching listing on the mock marketplace">post a test listing</button>
   <label class="replay-toggle" title="Replays a recorded real run: no API calls"><input id="replay" type="checkbox"> replay</label>
 </footer>
 

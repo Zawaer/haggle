@@ -33,5 +33,5 @@ MARKET_URL = os.environ.get("HAGGLE_MARKET_URL", "").rstrip("/")
 HUMAN_REPLY_TIMEOUT = int(os.environ.get("HAGGLE_HUMAN_TIMEOUT", "180"))  # seconds to wait for a seller reply
 
 # Watch mode: after the first deals, keep checking the marketplace for new matching listings.
-WATCH_INTERVAL = int(os.environ.get("HAGGLE_WATCH_INTERVAL", "20"))      # seconds between searches
+WATCH_INTERVAL = int(os.environ.get("HAGGLE_WATCH_INTERVAL", "15"))      # seconds between searches
 WATCH_MINUTES = int(os.environ.get("HAGGLE_WATCH_MINUTES", "180"))       # stop watching after this long

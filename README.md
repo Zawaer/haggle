@@ -51,7 +51,7 @@ The rules are enforced in code, not in prompts:
 
 ### Watch mode
 
-After the first deals, haggle keeps watching the marketplace (every 20 s by default, for up to 3 hours) from
+After the first deals, haggle keeps watching the marketplace (every 15 s by default, for up to 3 hours) from
 the always-on machine it runs on (our Matrix OS cloud computer). A new listing that matches is read,
 vetted and scam-checked; the agent drafts a message and **waits for the user's approval** before contacting
 the seller; then it negotiates and the new deal joins the handoff. Watching stops when a deal is confirmed.
