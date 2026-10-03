@@ -165,7 +165,9 @@ class Hunt:
             return await self.market.search(self.req["search_queries"])
         if self.source == "mockbay":
             try:
-                return await mockbay.search(self.req["search_queries"])
+                found = await mockbay.search(self.req["search_queries"])
+                # listings published live during the demo (POST /api/market/listings) live in the local store
+                return found + [l for l in marketplace.search(self.req["search_queries"]) if "-new" in l["id"]]
             except Exception as e:  # mockbay down / venue Wi-Fi: keep the demo alive on the built-in mock
                 self.source = "local"
                 await self.emit("status", text=f"mockbay unreachable ({str(e)[:60]}), using the built-in marketplace")
