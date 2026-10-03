@@ -49,6 +49,13 @@ The rules are enforced in code, not in prompts:
   an agreed price is "reserved pending my client's confirmation".
 - **Call budget** per hunt and retries with a fallback model on 503s.
 
+### Watch mode
+
+After the first deals, haggle keeps watching the marketplace (every 20 s by default, for up to 3 hours) from
+the always-on machine it runs on (our Matrix OS cloud computer). A new listing that matches is read,
+vetted and scam-checked; the agent drafts a message and **waits for the user's approval** before contacting
+the seller; then it negotiates and the new deal joins the handoff. Watching stops when a deal is confirmed.
+
 ## Results
 
 Evaluated against the mock marketplace's hidden ground truth (`eval/eval_vetting.py`):
@@ -117,6 +124,11 @@ Evaluation: `.venv/bin/python -m eval.eval_vetting`.
 | POST | `/api/hunts/{id}/approve` `{"ids"}` | approve outreach → negotiations start |
 | POST | `/api/hunts/{id}/confirm` `{"id"}` | confirm a deal; other sellers are released |
 | GET | `/api/hunts/{id}` | snapshot |
+| POST | `/api/market/listings` `{"title","description","price_sek","location",…}` | demo: publish a listing on the built-in mock (watch mode finds it) |
+
+Approving also works after the first handoff, for listings found by watch mode. Extra events:
+`watch {active, interval, text}`, `watch_hit {id, text}`, and `found` carries `new: true` for listings
+found by watch mode.
 
 ## MCP: use haggle from any agent (e.g. Matrix OS)
 

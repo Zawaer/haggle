@@ -89,7 +89,9 @@ async def answer(hid: str, body: Text):
 @app.post("/api/hunts/{hid}/approve")
 async def approve(hid: str, body: Ids):
     h = _hunt(hid)
-    if h.phase != "awaiting_approval":
+    ok = h.phase == "awaiting_approval" or any(
+        h.items.get(i, {}).get("state") == "shortlisted" and h.items[i].get("draft") for i in body.ids)
+    if not ok:
         raise HTTPException(400, f"can't approve in phase {h.phase}")
     _bg(h.approve(body.ids))
     return {"ok": True}
@@ -103,6 +105,34 @@ async def confirm(hid: str, body: One):
     except ValueError as e:
         raise HTTPException(400, str(e))
     return {"ok": True}
+
+
+class NewListing(BaseModel):
+    title: str
+    description: str
+    price_sek: int
+    location: str = "Stockholm"
+    source: str = "Blocket"
+    shipping: bool = False
+    min_price_sek: int | None = None
+    personality: str = "Friendly, a bit chatty, wants a quick sale this week."
+
+
+@app.post("/api/market/listings")
+async def post_listing(body: NewListing):
+    """Demo helper: publish a new listing on the BUILT-IN mock marketplace (watch mode picks it up)."""
+    from . import marketplace
+    ls = marketplace.listings()
+    prefix = {"Blocket": "bl", "Tradera": "tr"}.get(body.source, "fb")
+    lid = f"{prefix}-new{sum(1 for l in ls if '-new' in l['id']) + 1}"
+    ls.append({"id": lid, "source": body.source, "title": body.title, "description": body.description,
+               "price_sek": body.price_sek, "location": body.location, "shipping": body.shipping, "posted_days_ago": 0,
+               "seller": {"name": "Nils A.", "account_age_days": 2100, "num_reviews": 14, "rating": 4.9},
+               "hidden": {"true_specs": None, "category": "desktop_pc",
+                          "min_price_sek": body.min_price_sek or int(body.price_sek * 0.85), "personality": body.personality,
+                          "language": "sv", "is_scam": False, "scam_signals": [], "expected_verdict": "match",
+                          "notes": "posted live during the demo"}})
+    return {"id": lid}
 
 
 @app.get("/api/hunts/{hid}")

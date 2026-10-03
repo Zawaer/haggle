@@ -49,6 +49,8 @@ class Hunt:
         self.budget = Budget()
         self.phase = "intake"
         self.answer_future = None
+        self.watching = False
+        self.market_ref = None
         self.approved = asyncio.Event()
         self.started = time.time()
         self.market = None
@@ -123,7 +125,7 @@ class Hunt:
             return l, specs
 
         extracted = await asyncio.gather(*(ext(l) for l in found))
-        market = pipeline.market_reference(extracted)
+        market = self.market_ref = pipeline.market_reference(extracted)
         if market:
             await self.emit("status", text=f"Market reference for comparable PCs: ~{market:,.0f} kr (median asking)")
 
@@ -149,20 +151,74 @@ class Hunt:
         # Step 6 prep: draft opening messages, but send nothing until the user approves.
         await self.phase_to("draft")
 
-        async def draft(it):
-            out = await negotiation.buyer_turn(self.req, it["listing"], it["verdicts"], [], "", self.budget)
-            out["offer_sek"] = min(out.get("offer_sek") or 0, self.req["budget_max_sek"])
-            it["draft"] = out
-            await self.emit("draft", id=it["id"], message=out["message"], offer_sek=out["offer_sek"],
-                            private_thoughts=out["private_thoughts"])
-
-        await asyncio.gather(*(draft(it) for it in shortlist))
+        await asyncio.gather(*(self._draft(it) for it in shortlist))
         await self.phase_to("awaiting_approval")
+
+    async def _draft(self, it):
+        out = await negotiation.buyer_turn(self.req, it["listing"], it["verdicts"], [], "", self.budget)
+        out["offer_sek"] = min(out.get("offer_sek") or 0, self.req["budget_max_sek"])
+        it["draft"] = out
+        await self.emit("draft", id=it["id"], message=out["message"], offer_sek=out["offer_sek"],
+                        private_thoughts=out["private_thoughts"])
+
+    # ------------------------------------------------------------ watch mode
+    async def _search(self):
+        if self.market:
+            return await self.market.search(self.req["search_queries"])
+        return marketplace.search(self.req["search_queries"])
+
+    async def watch(self):
+        """Keep checking the marketplace for NEW listings; vet them and, if good, draft a message and ask the
+        user to approve (nothing is sent automatically). Runs on the always-on machine (Matrix OS)."""
+        if self.watching:
+            return
+        self.watching = True
+        await self.emit("watch", active=True, interval=config.WATCH_INTERVAL,
+                        text=f"Watching for new listings every {config.WATCH_INTERVAL} s")
+        end = time.time() + config.WATCH_MINUTES * 60
+        try:
+            while self.watching and time.time() < end:
+                await asyncio.sleep(config.WATCH_INTERVAL)
+                if not self.watching:
+                    break
+                try:
+                    new = [l for l in await self._search() if l["id"] not in self.items]
+                except Exception as e:
+                    await self.emit("status", text=f"Watch: search failed ({str(e)[:80]}), retrying")
+                    continue
+                for l in new:
+                    await self._vet_new(l)
+        finally:
+            self.watching = False
+            await self.emit("watch", active=False, text="Stopped watching")
+
+    async def _vet_new(self, l):
+        lid = l["id"]
+        self.items[lid] = {"id": lid, "listing": l, "state": "found", "thread": [], "new": True}
+        await self.emit("found", id=lid, listing=l, new=True)
+        specs = await pipeline.extract(l, self.budget)
+        l["_lang"] = specs["language"]
+        await self.set_state(lid, "extracted", specs=specs)
+        verdicts = pipeline.match(l, specs, self.req)
+        r, reasons = pipeline.risk(l, specs, getattr(self, "market_ref", None))
+        verdict = pipeline.overall(verdicts, r)
+        score = pipeline.rank_score(l, specs, verdicts, r, self.req) if verdict in ("match", "uncertain") else None
+        await self.set_state(lid, {"match": "matched", "uncertain": "uncertain"}.get(verdict, verdict),
+                             verdict=verdict, verdicts=verdicts, risk=r, risk_reasons=reasons, score=score)
+        if score is None:
+            await self.emit("status", text=f"New listing \u201c{l['title'][:50]}\u201d: {verdict}, ignored")
+            return
+        await self.set_state(lid, "shortlisted")
+        await self._draft(self.items[lid])
+        await self.emit("watch_hit", id=lid, text=f"New match: \u201c{l['title'][:60]}\u201d at {l['price_sek']:,} kr. "
+                                                  f"Approve to start negotiating.")
 
     # ------------------------------------------------------------ steps 6-7
     async def approve(self, ids):
         if self.phase != "awaiting_approval":
-            raise ValueError("nothing to approve right now")
+            ids = [i for i in ids if self.items.get(i, {}).get("state") == "shortlisted" and self.items[i].get("draft")]
+            if not ids or self.phase not in ("awaiting_confirmation", "done", "negotiate"):
+                raise ValueError("nothing to approve right now")
         await self.phase_to("negotiate")
         for lid in ids:
             await self.set_state(lid, "approved")
@@ -335,11 +391,14 @@ class Hunt:
         await self.emit("handoff", ids=[it["id"] for it in deals],
                         best=deals[0]["id"] if deals else None)
         await self.phase_to("awaiting_confirmation" if deals else "done")
+        if not self.watching and not any(i["state"] == "confirmed" for i in self.items.values()):
+            asyncio.ensure_future(self.watch())
 
     async def confirm(self, lid):
         it = self.items[lid]
         if it["state"] != "deal_offered":
             raise ValueError("that listing has no deal to confirm")
+        self.watching = False
         await self.set_state(lid, "confirmed")
         others = [o for o in self.items.values() if o["state"] in ("deal_offered", "negotiating") and o["id"] != lid]
         for o in others:
