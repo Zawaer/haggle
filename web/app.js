@@ -39,7 +39,7 @@
   const REJECTED = new Set(["reject"]);
   const LIVE_STATES = new Set(["approved", "negotiating"]);
   const DEAD_STATES = new Set(["walked_away", "dropped", "seller_declined", "no_deal", "released"]);
-  const SRC = (s) => (/blocket/i.test(s) ? ["src-blocket", "Blocket"] : /tradera/i.test(s) ? ["src-tradera", "Tradera"] : ["src-fb", "Facebook"]);
+  const SRC = (s) => (/mockbay/i.test(s) ? ["src-mockbay", "mockbay"] : /blocket/i.test(s) ? ["src-blocket", "Blocket"] : /tradera/i.test(s) ? ["src-tradera", "Tradera"] : /facebook/i.test(s) ? ["src-fb", "Facebook"] : ["src-other", String(s || "marketplace")]);
   const STATE_LABEL = {
     found: "reading…", extracted: "vetting…", matched: "match", uncertain: "unclear, will ask", scam: "scam", error: "error", reject: "rejected",
     shortlisted: "shortlisted", approved: "approved", negotiating: "negotiating…", deal_offered: "deal reserved",
@@ -290,7 +290,7 @@
         <span class="c-n mono"></span>
         <span class="c-src ${cls}">${name}</span>
         <span class="c-title">
-          <span class="t" title="${esc(l.title)}">${it.isNew ? `<span class="newtag mono">new</span> ` : ""}${esc(l.title)}</span>
+          <span class="t" title="${esc(l.title)}">${it.isNew ? `<span class="newtag mono">new</span> ` : ""}${l.url ? `<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.title)}</a>` : esc(l.title)}</span>
           <span class="sub">${sub}</span>
           <span class="specs mono hidden"></span>
           <span class="why"></span>
