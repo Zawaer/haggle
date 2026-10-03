@@ -1,0 +1,285 @@
+"""The orchestrator: deterministic code owns state, LLMs propose.
+
+Each listing moves through a state machine:
+  found -> extracted -> matched | uncertain | rejected | scam -> shortlisted -> approved
+        -> negotiating -> deal_offered | seller_declined | walked_away | dropped -> (confirmed | released)
+
+Rules enforced here, not in prompts:
+  * no message is sent to a seller before the user approves that listing
+  * no offer above the budget ceiling (capped, and the cap is shown)
+  * no claim about a competing offer unless another thread really has that price
+  * max N buyer messages per seller
+  * a listing drops out mid-negotiation if the seller reveals it fails a requirement
+  * the agent never buys: the user confirms one deal, every other thread is released politely
+
+Every change is an event (append-only log) streamed to the UI over SSE.
+"""
+import asyncio
+import random
+import time
+import uuid
+
+from . import config, marketplace, negotiation, pipeline
+from .llm import Budget
+
+HUNTS = {}
+
+
+class Hunt:
+    def __init__(self, request):
+        self.id = uuid.uuid4().hex[:8]
+        self.request = request
+        self.req = None
+        self.items = {}          # listing id -> state dict
+        self.events = []
+        self.cond = asyncio.Condition()
+        self.budget = Budget()
+        self.phase = "intake"
+        self.answer_future = None
+        self.approved = asyncio.Event()
+        self.started = time.time()
+        HUNTS[self.id] = self
+
+    # ------------------------------------------------------------ events
+    async def emit(self, type_, **data):
+        ev = {"seq": len(self.events), "t": round(time.time() - self.started, 2), "type": type_, **data}
+        self.events.append(ev)
+        async with self.cond:
+            self.cond.notify_all()
+
+    def set_state(self, lid, state, **extra):
+        it = self.items[lid]
+        it["state"] = state
+        it.update(extra)
+        return self.emit("listing", id=lid, state=state, **{k: it.get(k) for k in
+                         ("verdict", "verdicts", "risk", "risk_reasons", "score", "specs", "deal", "reason") if k in it})
+
+    async def phase_to(self, p):
+        self.phase = p
+        await self.emit("phase", phase=p, calls=self.budget.calls)
+
+    def snapshot(self):
+        return {"id": self.id, "request": self.request, "req": self.req, "phase": self.phase,
+                "items": self.items, "calls": self.budget.calls}
+
+    # ------------------------------------------------------------ steps 1-5
+    async def run(self):
+        try:
+            await self._discover()
+        except Exception as e:  # surface failures in the UI instead of dying silently
+            await self.emit("error", message=str(e))
+            raise
+
+    async def _discover(self):
+        await self.emit("status", text="Understanding your request…")
+        self.req = await pipeline.intake(self.request, self.budget)
+        if self.req["clarifying_question"].strip():
+            self.answer_future = asyncio.get_running_loop().create_future()
+            await self.emit("question", text=self.req["clarifying_question"])
+            answer = await self.answer_future
+            self.req = await pipeline.intake(self.request, self.budget, answer=answer)
+        await self.emit("requirements", req=self.req)
+
+        await self.phase_to("search")
+        found = marketplace.search(self.req["search_queries"])
+        await self.emit("status", text=f"Searched Blocket, Tradera and Facebook Marketplace with "
+                                       f"{len(self.req['search_queries'])} queries: {len(found)} listings")
+        for l in found:
+            self.items[l["id"]] = {"id": l["id"], "listing": l, "state": "found", "thread": []}
+            await self.emit("found", id=l["id"], listing=l)
+
+        await self.phase_to("extract")
+
+        async def ext(l):
+            await asyncio.sleep(random.random() * 0.5)
+            try:
+                specs = await pipeline.extract(l, self.budget)
+            except Exception as e:
+                await self.set_state(l["id"], "error", reason=str(e)[:200])
+                return l, None
+            self.items[l["id"]]["listing"]["_lang"] = specs["language"]
+            await self.set_state(l["id"], "extracted", specs=specs)
+            return l, specs
+
+        extracted = await asyncio.gather(*(ext(l) for l in found))
+        market = pipeline.market_reference(extracted)
+        if market:
+            await self.emit("status", text=f"Market reference for comparable PCs: ~{market:,.0f} kr (median asking)")
+
+        await self.phase_to("vet")
+        for l, specs in extracted:
+            if not specs:
+                continue
+            verdicts = pipeline.match(l, specs, self.req)
+            r, reasons = pipeline.risk(l, specs, market)
+            verdict = pipeline.overall(verdicts, r)
+            score = pipeline.rank_score(l, specs, verdicts, r, self.req) if verdict in ("match", "uncertain") else None
+            await self.set_state(l["id"], {"match": "matched", "uncertain": "uncertain"}.get(verdict, verdict),
+                                 verdict=verdict, verdicts=verdicts, risk=r, risk_reasons=reasons, score=score)
+            await asyncio.sleep(0.08)
+
+        await self.phase_to("rank")
+        pool = sorted((it for it in self.items.values() if it.get("score") is not None), key=lambda it: -it["score"])
+        shortlist = pool[:config.SHORTLIST_SIZE]
+        for it in shortlist:
+            await self.set_state(it["id"], "shortlisted")
+        await self.emit("shortlist", ids=[it["id"] for it in shortlist])
+
+        # Step 6 prep: draft opening messages, but send nothing until the user approves.
+        await self.phase_to("draft")
+
+        async def draft(it):
+            out = await negotiation.buyer_turn(self.req, it["listing"], it["verdicts"], [], "", self.budget)
+            out["offer_sek"] = min(out.get("offer_sek") or 0, self.req["budget_max_sek"])
+            it["draft"] = out
+            await self.emit("draft", id=it["id"], message=out["message"], offer_sek=out["offer_sek"],
+                            private_thoughts=out["private_thoughts"])
+
+        await asyncio.gather(*(draft(it) for it in shortlist))
+        await self.phase_to("awaiting_approval")
+
+    # ------------------------------------------------------------ steps 6-7
+    async def approve(self, ids):
+        if self.phase != "awaiting_approval":
+            raise ValueError("nothing to approve right now")
+        await self.phase_to("negotiate")
+        for lid in ids:
+            await self.set_state(lid, "approved")
+        await asyncio.gather(*(self._negotiate(lid) for lid in ids))
+        await self._handoff()
+
+    def _verified_facts(self, lid):
+        """Competing prices the buyer may truthfully cite: sellers' current asks in other live threads."""
+        facts = []
+        for oid, it in self.items.items():
+            if oid == lid or not it.get("thread"):
+                continue
+            if it["state"] in ("negotiating", "deal_offered") and it.get("seller_price"):
+                facts.append(it["seller_price"])
+        return "\n".join(f"- another seller is at {p:,.0f} SEK for a comparable PC" for p in sorted(facts)[:2])
+
+    def _claim_ok(self, lid, claimed):
+        if not claimed:
+            return True
+        return any(it.get("seller_price") and it["seller_price"] <= claimed * 1.001
+                   for oid, it in self.items.items() if oid != lid and it["state"] in ("negotiating", "deal_offered"))
+
+    async def _guard(self, lid, rule, detail):
+        await self.emit("guardrail", id=lid, rule=rule, detail=detail)
+
+    async def _send(self, lid, role, text, price=None, thoughts=None, action=None):
+        it = self.items[lid]
+        msg = {"role": role, "text": text, "price_sek": price, "thoughts": thoughts, "action": action,
+               "t": round(time.time() - self.started, 2)}
+        it["thread"].append(msg)
+        await self.emit("message", id=lid, **msg)
+
+    async def _negotiate(self, lid):
+        it = self.items[lid]
+        l, full = it["listing"], marketplace.get(lid)
+        full = {**full, "_lang": l.get("_lang")}
+        bmax = self.req["budget_max_sek"]
+        await self.set_state(lid, "negotiating")
+        buyer_msgs = 0
+        out = it["draft"]
+        while True:
+            # ---- guardrails on the buyer's proposal
+            if out["action"] in ("offer", "accept") and out["offer_sek"] > bmax:
+                await self._guard(lid, "budget_cap", f"offer {out['offer_sek']:,.0f} kr capped at budget {bmax:,.0f} kr")
+                out = await negotiation.buyer_turn(self.req, l, it["verdicts"], it["thread"], self._verified_facts(lid),
+                                                   self.budget, note=f"\nORCHESTRATOR: your offer exceeded the client's ceiling. "
+                                                   f"Max is {bmax:,.0f} SEK. Rewrite your move.")
+                out["offer_sek"] = min(out["offer_sek"], bmax)
+            if not self._claim_ok(lid, out.get("claims_competing_offer_sek")):
+                await self._guard(lid, "false_claim", f"blocked a claim of a competing offer at "
+                                  f"{out['claims_competing_offer_sek']:,.0f} kr: no such offer exists")
+                out = await negotiation.buyer_turn(self.req, l, it["verdicts"], it["thread"], self._verified_facts(lid),
+                                                   self.budget, note="\nORCHESTRATOR: you claimed a competing offer that does "
+                                                   "not exist. Rewrite your move without that claim.")
+                if not self._claim_ok(lid, out.get("claims_competing_offer_sek")):
+                    out["message"] += ""  # second failure: send anyway but strip the number from state
+                    out["claims_competing_offer_sek"] = 0
+
+            # ---- learned specs can knock a listing out
+            dropped = self._apply_learned(lid, out.get("learned_specs") or {})
+            price = out["offer_sek"] if out["action"] in ("offer", "accept") else None
+            await self._send(lid, "buyer", out["message"], price, out["private_thoughts"], out["action"])
+            buyer_msgs += 1
+            if dropped:
+                await self.set_state(lid, "dropped", reason=dropped)
+                return
+            if out["action"] == "walk_away":
+                await self.set_state(lid, "walked_away", reason=out["private_thoughts"])
+                return
+            if out["action"] == "accept" and it.get("seller_price") and out["offer_sek"] >= it["seller_price"] - 1:
+                return await self._deal(lid, it["seller_price"], out.get("pickup_or_shipping", ""))
+
+            # ---- seller replies (simulated human, slight delay for realism)
+            await asyncio.sleep(0.4 + random.random() * 1.2)
+            s = await negotiation.seller_turn(full, it["thread"], self.budget)
+            floor = full["hidden"].get("min_price_sek") or l["price_sek"]
+            if s["action"] in ("accept", "counter") and s["price_sek"] and s["price_sek"] < floor:
+                s["price_sek"], s["action"] = floor, "counter"  # sellers can't go below their hidden minimum
+            if s["action"] == "accept":
+                s["price_sek"] = price or s["price_sek"]
+            if s.get("price_sek"):
+                it["seller_price"] = s["price_sek"]
+            await self._send(lid, "seller", s["message"], s.get("price_sek") or None, s["private_thoughts"], s["action"])
+            if s["action"] == "decline":
+                await self.set_state(lid, "seller_declined")
+                return
+            if s["action"] == "accept" and price and price <= bmax:
+                return await self._deal(lid, price, "")
+            if buyer_msgs >= config.MAX_MESSAGES_PER_SELLER:
+                await self._guard(lid, "message_limit", f"{config.MAX_MESSAGES_PER_SELLER} messages sent: stopping this thread")
+                if it.get("seller_price") and it["seller_price"] <= bmax:
+                    return await self._deal(lid, it["seller_price"], "")
+                await self.set_state(lid, "no_deal", reason="no agreement within message limit")
+                return
+            out = await negotiation.buyer_turn(self.req, l, it["verdicts"], it["thread"], self._verified_facts(lid), self.budget)
+
+    def _apply_learned(self, lid, learned):
+        """Re-check requirements with specs the seller revealed. Returns a drop reason or None."""
+        it = self.items[lid]
+        specs = dict(it["specs"])
+        if learned.get("gpu"):
+            specs["gpu"] = learned["gpu"]
+        if (learned.get("ram_gb") or -1) > 0:
+            specs["ram_gb"] = learned["ram_gb"]
+        if (learned.get("ssd_gb") or -1) > 0:
+            specs["ssd_gb"] = learned["ssd_gb"]
+        if specs == it["specs"]:
+            return None
+        v = pipeline.match(it["listing"], specs, self.req)
+        it["specs"], it["verdicts"] = specs, v
+        fails = [f"{k}: {x['reason']}" for k, x in v.items() if x["status"] == "fail" and k not in ("price",)]
+        asyncio.ensure_future(self.emit("listing", id=lid, state=it["state"], verdicts=v, specs=specs))
+        return "; ".join(fails) or None
+
+    async def _deal(self, lid, price, logistics):
+        it = self.items[lid]
+        ask = it["listing"]["price_sek"]
+        deal = {"price_sek": price, "asking_sek": ask, "saved_sek": ask - price, "logistics": logistics}
+        await self.set_state(lid, "deal_offered", deal=deal)
+
+    # ------------------------------------------------------------ step 8
+    async def _handoff(self):
+        deals = sorted((it for it in self.items.values() if it["state"] == "deal_offered"),
+                       key=lambda it: (it["deal"]["price_sek"] - (it.get("score") or 0) * 20))
+        await self.emit("handoff", ids=[it["id"] for it in deals],
+                        best=deals[0]["id"] if deals else None, calls=self.budget.calls)
+        await self.phase_to("awaiting_confirmation" if deals else "done")
+
+    async def confirm(self, lid):
+        it = self.items[lid]
+        if it["state"] != "deal_offered":
+            raise ValueError("that listing has no deal to confirm")
+        await self.set_state(lid, "confirmed")
+        others = [o for o in self.items.values() if o["state"] in ("deal_offered", "negotiating") and o["id"] != lid]
+        for o in others:
+            sv = o["listing"].get("_lang") == "sv"
+            await self._send(o["id"], "buyer", "Tack för snabba svar! Min klient har tyvärr valt en annan dator. Lycka till med försäljningen!"
+                             if sv else "Thanks for the quick replies! My client went with another PC, good luck with the sale!",
+                             action="release")
+            await self.set_state(o["id"], "released")
+        await self.phase_to("done")

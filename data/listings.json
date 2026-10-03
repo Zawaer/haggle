@@ -1,0 +1,1422 @@
+[
+  {
+    "id": "bl-001",
+    "source": "Blocket",
+    "title": "Speldator RX 6700XT i5 12600K 16gb 2tb nvme",
+    "description": "Säljer min speldator, rx 6700 xt 12gb, i5-12600k, 16gb ddr4, 2tb nvme ssd, 750w gold. Vattenkyld cpu (240mm aio). Mycket bra skick. Jag vet vad den är värd så snåla bud ignoreras. Hämtas Bromma eller skickas mot frakt.",
+    "price_sek": 9200,
+    "location": "Bromma, Stockholm",
+    "shipping": true,
+    "posted_days_ago": 8,
+    "seller": {
+      "name": "Fredrik W.",
+      "account_age_days": 1900,
+      "num_reviews": 21,
+      "rating": 4.7
+    },
+    "hidden": {
+      "true_specs": {
+        "gpu": "RX 6700 XT 12GB",
+        "cpu": "Core i5-12600K",
+        "ram_gb": 16,
+        "storage_gb": 2000,
+        "storage_type": "SSD"
+      },
+      "category": "desktop_pc",
+      "min_price_sek": 8600,
+      "personality": "Confident, slightly arrogant seller who 'knows the market', ignores lowballs entirely, counteroffers once and stops at 8600.",
+      "language": "sv",
+      "is_scam": false,
+      "scam_signals": [],
+      "expected_verdict": "match",
+      "notes": "Specs match (exceeds). Unreachable under 8000 (min 8600). Agent should report it as over budget, possibly ask the user if they'd stretch."
+    }
+  },
+  {
+    "id": "bl-002",
+    "source": "Blocket",
+    "title": "RTX 3070 speldator i7 10700 - PRISET ÄR FAST",
+    "description": "Speldator rtx 3070, i7-10700, 16 gb ram, 1 tb ssd. Funkar perfekt. Priset är fast. Inga bytesförslag. Inga frågor om \"lägsta pris\", svarar inte på sånt. Hämtas i Täby.",
+    "price_sek": 9500,
+    "location": "Täby, Stockholm",
+    "shipping": false,
+    "posted_days_ago": 9,
+    "seller": {
+      "name": "Bengt-Åke",
+      "account_age_days": 4200,
+      "num_reviews": 31,
+      "rating": 4.6
+    },
+    "hidden": {
+      "true_specs": {
+        "gpu": "RTX 3070",
+        "cpu": "Core i7-10700",
+        "ram_gb": 16,
+        "storage_gb": 1000,
+        "storage_type": "SSD"
+      },
+      "category": "desktop_pc",
+      "min_price_sek": 9300,
+      "personality": "Firm, curt old-timer: 'priset är fast' means it, ignores or snaps at lowballs, might knock off 200 kr for cash pickup today at most.",
+      "language": "sv",
+      "is_scam": false,
+      "scam_signals": [],
+      "expected_verdict": "match",
+      "notes": "Specs match but unreachable under budget (min 9300). Agent should recognise the dead end and walk away politely instead of looping."
+    }
+  },
+  {
+    "id": "bl-003",
+    "source": "Blocket",
+    "title": "Speldator RTX 3050 Ryzen 5 5500 16GB 1TB SSD",
+    "description": "Fin speldator, rtx 3050 8gb, ryzen 5 5500, 16gb ram, 1tb ssd. Perfekt för fortnite/minecraft/roblox. Hämtas i Haninge, kan skicka.",
+    "price_sek": 5500,
+    "location": "Haninge, Stockholm",
+    "shipping": true,
+    "posted_days_ago": 4,
+    "seller": {
+      "name": "Sara J.",
+      "account_age_days": 1500,
+      "num_reviews": 8,
+      "rating": 4.9
+    },
+    "hidden": {
+      "true_specs": {
+        "gpu": "RTX 3050 8GB",
+        "cpu": "Ryzen 5 5500",
+        "ram_gb": 16,
+        "storage_gb": 1000,
+        "storage_type": "SSD"
+      },
+      "category": "desktop_pc",
+      "min_price_sek": 4800,
+      "personality": "Friendly parent selling a kid's PC, flexible, replies in Swedish within the hour.",
+      "language": "sv",
+      "is_scam": false,
+      "scam_signals": [],
+      "expected_verdict": "near_miss",
+      "notes": "GPU below requirement (3050 is ~30% slower than 3060). Everything else fits; agent should flag GPU gap, maybe mention as budget alternative."
+    }
+  },
+  {
+    "id": "tr-001",
+    "source": "Tradera",
+    "title": "Speldator RTX 3070 Ti 32GB 2TB NVMe Köp Nu",
+    "description": "Säljer speldator RTX 3070 Ti, Ryzen 7 5800X, 32GB RAM, 2TB NVMe. Fungerar perfekt. Endast frakt. Betalning sker via betalningslänk som jag skickar på mail, ej via Tradera.",
+    "price_sek": 4500,
+    "location": "Malmö",
+    "shipping": true,
+    "posted_days_ago": 0,
+    "seller": {
+      "name": "tech_deals_2026",
+      "account_age_days": 4,
+      "num_reviews": 0,
+      "rating": null
+    },
+    "hidden": {
+      "true_specs": {
+        "gpu": null,
+        "cpu": null,
+        "ram_gb": null,
+        "storage_gb": null,
+        "storage_type": null
+      },
+      "category": "desktop_pc",
+      "min_price_sek": 4500,
+      "personality": "Tries to move the conversation off-platform to email/WhatsApp, sends phishing 'payment links', vague about details.",
+      "language": "sv",
+      "is_scam": true,
+      "scam_signals": [
+        "price far below market",
+        "new account",
+        "off-platform payment link",
+        "shipping only",
+        "asks to move to email"
+      ],
+      "expected_verdict": "scam",
+      "notes": "Off-platform payment link scam (phishing). Signals: new account, no reviews, payment outside the platform, shipping only."
+    }
+  },
+  {
+    "id": "bl-004",
+    "source": "Blocket",
+    "title": "RTX 3070 / R7 5800X / 16GB / 1TB - billigt, hämtas endast",
+    "description": "Speldator rtx 3070, ryzen 7 5800x, 16gb 3600mhz, 1tb nvme, 750w. Toppskick. Billigt pga vill bli av med den snabbt. Hämtas endast i Västerås, skickar INTE. Inga undantag.",
+    "price_sek": 6500,
+    "location": "Västerås",
+    "shipping": false,
+    "posted_days_ago": 2,
+    "seller": {
+      "name": "Mattias E.",
+      "account_age_days": 2800,
+      "num_reviews": 28,
+      "rating": 4.9
+    },
+    "hidden": {
+      "true_specs": {
+        "gpu": "RTX 3070",
+        "cpu": "Ryzen 7 5800X",
+        "ram_gb": 16,
+        "storage_gb": 1000,
+        "storage_type": "SSD"
+      },
+      "category": "desktop_pc",
+      "min_price_sek": 6000,
+      "personality": "Practical, friendly but absolutely refuses shipping; may agree to meet halfway (Enköping) if asked nicely.",
+      "language": "sv",
+      "is_scam": false,
+      "scam_signals": [],
+      "expected_verdict": "near_miss",
+      "notes": "Great deal but in Västerås (~1.5-2h) with no shipping; violates 'pickup in Stockholm or shipping'. Agent should surface it as a tradeoff, not silently match or drop."
+    }
+  },
+  {
+    "id": "bl-005",
+    "source": "Blocket",
+    "title": "Gaming dator, kör alla spel",
+    "description": "Säljer min gaming dator kör alla spel utan problem. Snabb. Hör av er vid intresse!!",
+    "price_sek": 6000,
+    "location": "Sundbyberg, Stockholm",
+    "shipping": false,
+    "posted_days_ago": 2,
+    "seller": {
+      "name": "Kevin A.",
+      "account_age_days": 800,
+      "num_reviews": 1,
+      "rating": 5.0
+    },
+    "hidden": {
+      "true_specs": {
+        "gpu": "RTX 3060 12GB",
+        "cpu": "Ryzen 5 3600",
+        "ram_gb": 16,
+        "storage_gb": 1000,
+        "storage_type": "SSD"
+      },
+      "category": "desktop_pc",
+      "min_price_sek": 5400,
+      "personality": "Young seller who doesn't know the specs by heart, has to 'check with his brother', replies slowly but honestly once he knows.",
+      "language": "sv",
+      "is_scam": false,
+      "scam_signals": [],
+      "expected_verdict": "uncertain",
+      "notes": "Zero specs. Hidden truth is a full match at a good price - rewards agents that ask instead of discarding."
+    }
+  },
+  {
+    "id": "fb-001",
+    "source": "Facebook Marketplace",
+    "title": "Gaming rig RTX 3060 16GB 1TB - barely used",
+    "description": "Barely used gaming rig, RTX 3060, 16GB RAM, 1TB SSD, i7-12650H, 144Hz 15.6\" display, RGB keyboard. MSI Katana GF66. Comes with charger. Pickup Kista or shipping.",
+    "price_sek": 7200,
+    "location": "Kista, Stockholm",
+    "shipping": true,
+    "posted_days_ago": 3,
+    "seller": {
+      "name": "Chris L.",
+      "account_age_days": 900,
+      "num_reviews": 4,
+      "rating": 4.5
+    },
+    "hidden": {
+      "true_specs": {
+        "gpu": "RTX 3060 Laptop GPU 6GB",
+        "cpu": "Core i7-12650H",
+        "ram_gb": 16,
+        "storage_gb": 1000,
+        "storage_type": "SSD"
+      },
+      "category": "laptop",
+      "min_price_sek": 6500,
+      "personality": "Salesy, avoids the word 'laptop', but admits it if asked directly.",
+      "language": "en",
+      "is_scam": false,
+      "scam_signals": [],
+      "expected_verdict": "reject",
+      "notes": "Sneaky: called a 'gaming rig' with 'RTX 3060' but it's an MSI Katana laptop (3060 Laptop GPU, 6 GB, notably weaker). Clues: H-series CPU, display, charger, model name."
+    }
+  },
+  {
+    "id": "fb-002",
+    "source": "Facebook Marketplace",
+    "title": "RTX 4070 Gaming PC - Ryzen 7 7800X3D - 32GB - 2TB",
+    "description": "Hello, I am selling my gaming PC because I moved to Spain for work. RTX 4070, Ryzen 7 7800X3D, 32GB DDR5, 2TB NVMe. Like new. Price 4000 SEK. I can only ship with DHL, payment by bank transfer and you get tracking number. Serious buyers only.",
+    "price_sek": 4000,
+    "location": "Stockholm",
+    "shipping": true,
+    "posted_days_ago": 1,
+    "seller": {
+      "name": "Jessica Brown",
+      "account_age_days": 5,
+      "num_reviews": 0,
+      "rating": null
+    },
+    "hidden": {
+      "true_specs": {
+        "gpu": null,
+        "cpu": null,
+        "ram_gb": null,
+        "storage_gb": null,
+        "storage_type": null
+      },
+      "category": "desktop_pc",
+      "min_price_sek": 4000,
+      "personality": "Overly formal English, keeps repeating 'serious buyers only', insists on bank transfer to a foreign IBAN, sends fake DHL links.",
+      "language": "en",
+      "is_scam": true,
+      "scam_signals": [
+        "price far below market",
+        "new account",
+        "seller abroad",
+        "shipping only",
+        "bank transfer only",
+        "generic English text"
+      ],
+      "expected_verdict": "scam",
+      "notes": "Abroad-seller scam: seller 'in Spain', shipping only, bank transfer, absurd price for a 7800X3D/4070 build, brand-new account."
+    }
+  },
+  {
+    "id": "bl-006",
+    "source": "Blocket",
+    "title": "Speldator säljes snabbt! RX 6650 XT",
+    "description": "hej säljer min sons gamla dator han har köpt ny. rx 6650xt, ryzen 5 3600, 16gb, 1tb ssd. funkar bra. vill bli av med den i helgen, hämtas i Huddinge. swish vid hämtning",
+    "price_sek": 6500,
+    "location": "Huddinge, Stockholm",
+    "shipping": false,
+    "posted_days_ago": 1,
+    "seller": {
+      "name": "Peter K.",
+      "account_age_days": 3100,
+      "num_reviews": 9,
+      "rating": 4.7
+    },
+    "hidden": {
+      "true_specs": {
+        "gpu": "RX 6650 XT 8GB",
+        "cpu": "Ryzen 5 3600",
+        "ram_gb": 16,
+        "storage_gb": 1000,
+        "storage_type": "SSD"
+      },
+      "category": "desktop_pc",
+      "min_price_sek": 5500,
+      "personality": "Busy dad with three kids who just wants it out of the hallway this weekend, short lowercase replies, says yes quickly to any reasonable offer with weekend pickup.",
+      "language": "sv",
+      "is_scam": false,
+      "scam_signals": [],
+      "expected_verdict": "match",
+      "notes": "Cheap match, very negotiable. RX 6650 XT is roughly RTX 3060 level. Tests 'equivalent' reasoning and fast-close behaviour."
+    }
+  },
+  {
+    "id": "bl-007",
+    "source": "Blocket",
+    "title": "Speldator RTX 3070 startar inte - säljes som defekt",
+    "description": "Speldator rtx 3070, i7 9700k, 16gb, 1tb ssd. Startar inte, fläktarna snurrar en sekund sen dör den. Troligen nätagget eller moderkortet, vet ej. Säljes som den är, inga garantier. Hämtas Bromma.",
+    "price_sek": 3000,
+    "location": "Bromma, Stockholm",
+    "shipping": false,
+    "posted_days_ago": 3,
+    "seller": {
+      "name": "Robin T.",
+      "account_age_days": 2300,
+      "num_reviews": 17,
+      "rating": 4.6
+    },
+    "hidden": {
+      "true_specs": {
+        "gpu": "RTX 3070",
+        "cpu": "Core i7-9700K",
+        "ram_gb": 16,
+        "storage_gb": 1000,
+        "storage_type": "SSD"
+      },
+      "category": "desktop_pc",
+      "min_price_sek": 2500,
+      "personality": "Honest about the defect, no-nonsense, won't guarantee anything.",
+      "language": "sv",
+      "is_scam": false,
+      "scam_signals": [],
+      "expected_verdict": "reject",
+      "notes": "Broken PC with great specs ('startar inte'). Agent must read the description, not just the spec line."
+    }
+  },
+  {
+    "id": "bl-008",
+    "source": "Blocket",
+    "title": "Speldator med RGB!! 3060",
+    "description": "Snygg speldator med massa RGB och glassida 🌈 3060 grafikkort, ryzen processor. Kör allt i 1080p. Säljes pga köpt ps5. Hämtas i Älvsjö",
+    "price_sek": 6500,
+    "location": "Älvsjö, Stockholm",
+    "shipping": true,
+    "posted_days_ago": 3,
+    "seller": {
+      "name": "Nellie",
+      "account_age_days": 600,
+      "num_reviews": 2,
+      "rating": 5.0
+    },
+    "hidden": {
+      "true_specs": {
+        "gpu": "RTX 3060 12GB",
+        "cpu": "Ryzen 5 5600X",
+        "ram_gb": 16,
+        "storage_gb": 1000,
+        "storage_type": "SSD"
+      },
+      "category": "desktop_pc",
+      "min_price_sek": 5900,
+      "personality": "Enthusiastic teen who talks mostly about the RGB, needs to ask her dad about RAM and SSD but answers correctly.",
+      "language": "sv",
+      "is_scam": false,
+      "scam_signals": [],
+      "expected_verdict": "uncertain",
+      "notes": "GPU stated, RAM/storage missing. Truth: match."
+    }
+  },
+  {
+    "id": "tr-002",
+    "source": "Tradera",
+    "title": "Gaming dator GTX 1660 Super i5 9400F 16GB 1TB SSD",
+    "description": "Säljer speldator. GTX 1660 Super 6GB, Intel i5-9400F, 16GB RAM, 1TB SSD. Fungerar utmärkt, lite damm. Fraktas med Postnord eller hämtas Sollentuna.",
+    "price_sek": 4200,
+    "location": "Sollentuna, Stockholm",
+    "shipping": true,
+    "posted_days_ago": 13,
+    "seller": {
+      "name": "dator_kalle",
+      "account_age_days": 2200,
+      "num_reviews": 19,
+      "rating": 4.6
+    },
+    "hidden": {
+      "true_specs": {
+        "gpu": "GTX 1660 Super 6GB",
+        "cpu": "Core i5-9400F",
+        "ram_gb": 16,
+        "storage_gb": 1000,
+        "storage_type": "SSD"
+      },
+      "category": "desktop_pc",
+      "min_price_sek": 3700,
+      "personality": "Neutral, businesslike Tradera reseller, accepts ~10% off, no small talk.",
+      "language": "sv",
+      "is_scam": false,
+      "scam_signals": [],
+      "expected_verdict": "near_miss",
+      "notes": "Classic keyword hit with older GPU (1660 Super). Agent must know it's well below a 3060."
+    }
+  },
+  {
+    "id": "bl-009",
+    "source": "Blocket",
+    "title": "Gaming laptop ASUS TUF RTX 3060 16gb 512gb",
+    "description": "ASUS TUF Gaming F15, RTX 3060 (laptop), i7-11800H, 16gb ram, 512gb ssd, 144hz skärm. Laddare medföljer. Lite slitage på tangenterna. Hämtas Sundbyberg eller skickas.",
+    "price_sek": 6500,
+    "location": "Sundbyberg, Stockholm",
+    "shipping": true,
+    "posted_days_ago": 5,
+    "seller": {
+      "name": "Viktor N.",
+      "account_age_days": 1800,
+      "num_reviews": 13,
+      "rating": 4.8
+    },
+    "hidden": {
+      "true_specs": {
+        "gpu": "RTX 3060 Laptop GPU 6GB",
+        "cpu": "Core i7-11800H",
+        "ram_gb": 16,
+        "storage_gb": 512,
+        "storage_type": "SSD"
+      },
+      "category": "laptop",
+      "min_price_sek": 5800,
+      "personality": "Normal, helpful seller, open to small discounts.",
+      "language": "sv",
+      "is_scam": false,
+      "scam_signals": [],
+      "expected_verdict": "reject",
+      "notes": "Laptop, not a desktop gaming PC; laptop 3060 is weaker and only 512 GB. Keyword 'RTX 3060 16gb' noise."
+    }
+  },
+  {
+    "id": "fb-003",
+    "source": "Facebook Marketplace",
+    "title": "Gaming PC RTX 3070 great condition",
+    "description": "RTX 3070 gaming PC in great condition. Selling because I don't play anymore. DM for more info. Pickup Liljeholmen.",
+    "price_sek": 7800,
+    "location": "Liljeholmen, Stockholm",
+    "shipping": false,
+    "posted_days_ago": 1,
+    "seller": {
+      "name": "Daniel K.",
+      "account_age_days": 2100,
+      "num_reviews": 7,
+      "rating": 4.9
+    },
+    "hidden": {
+      "true_specs": {
+        "gpu": "RTX 3070",
+        "cpu": "Ryzen 7 5700X",
+        "ram_gb": 16,
+        "storage_gb": 1000,
+        "storage_type": "SSD"
+      },
+      "category": "desktop_pc",
+      "min_price_sek": 7000,
+      "personality": "Busy professional in English, replies late in the evening with complete spec lists, open to fair offers.",
+      "language": "en",
+      "is_scam": false,
+      "scam_signals": [],
+      "expected_verdict": "uncertain",
+      "notes": "Only the GPU is stated. Truth is a strong match (16 GB, 1 TB). Rewards asking for RAM/storage."
+    }
+  },
+  {
+    "id": "fb-004",
+    "source": "Facebook Marketplace",
+    "title": "RTX 3060 Gaming PC - 8GB RAM - cheap!",
+    "description": "RTX 3060 12GB, Ryzen 5 3600, 8GB RAM (1 stick, easy to add another), 1TB SSD. Works great. Pickup Kista.",
+    "price_sek": 6000,
+    "location": "Kista, Stockholm",
+    "shipping": true,
+    "posted_days_ago": 3,
+    "seller": {
+      "name": "Ali H.",
+      "account_age_days": 900,
+      "num_reviews": 6,
+      "rating": 4.8
+    },
+    "hidden": {
+      "true_specs": {
+        "gpu": "RTX 3060 12GB",
+        "cpu": "Ryzen 5 3600",
+        "ram_gb": 8,
+        "storage_gb": 1000,
+        "storage_type": "SSD"
+      },
+      "category": "desktop_pc",
+      "min_price_sek": 5300,
+      "personality": "Easy-going young seller in English, open to offers, suggests the buyer can upgrade RAM cheaply.",
+      "language": "en",
+      "is_scam": false,
+      "scam_signals": [],
+      "expected_verdict": "near_miss",
+      "notes": "Only 8 GB RAM. Fixable (~300 kr for another stick) so the agent could propose it with a lower offer."
+    }
+  },
+  {
+    "id": "bl-010",
+    "source": "Blocket",
+    "title": "RTX 3080 speldator i9 32gb 2tb - SNABB AFFÄR",
+    "description": "Säljer speldator RTX 3080, i9 10900K, 32gb ram, 2tb nvme. Nyskick. 3500kr!! Pga flytt måste den bort IDAG. Betalning endast via swish i förskott, skickar direkt efter. Kan ej visa pga jobbar.",
+    "price_sek": 3500,
+    "location": "Stockholm",
+    "shipping": true,
+    "posted_days_ago": 0,
+    "seller": {
+      "name": "Mikael Andersson",
+      "account_age_days": 2,
+      "num_reviews": 0,
+      "rating": null
+    },
+    "hidden": {
+      "true_specs": {
+        "gpu": null,
+        "cpu": null,
+        "ram_gb": null,
+        "storage_gb": null,
+        "storage_type": null
+      },
+      "category": "desktop_pc",
+      "min_price_sek": 3500,
+      "personality": "Pushy, evasive; refuses viewing or pickup, insists on Swish upfront, pressures with 'många intresserade', disappears if asked for ID or meeting.",
+      "language": "sv",
+      "is_scam": true,
+      "scam_signals": [
+        "price far below market",
+        "new account",
+        "swish/payment in advance",
+        "refuses viewing",
+        "urgency",
+        "vague location"
+      ],
+      "expected_verdict": "scam",
+      "notes": "Textbook Blocket scam: RTX 3080/i9 PC for a third of market price, 2-day-old account, Swish in advance, no viewing. True specs unknown (item doesn't exist)."
+    }
+  },
+  {
+    "id": "fb-005",
+    "source": "Facebook Marketplace",
+    "title": "Gaming monitor 27\" 165Hz 1440p",
+    "description": "AOC 27\" 1440p 165Hz gaming monitor, great for RTX 3060/3070 setups. No dead pixels. Pickup Solna.",
+    "price_sek": 1500,
+    "location": "Solna, Stockholm",
+    "shipping": false,
+    "posted_days_ago": 4,
+    "seller": {
+      "name": "Hannah B.",
+      "account_age_days": 1600,
+      "num_reviews": 8,
+      "rating": 4.8
+    },
+    "hidden": {
+      "true_specs": {
+        "gpu": null,
+        "cpu": null,
+        "ram_gb": null,
+        "storage_gb": null,
+        "storage_type": null
+      },
+      "category": "other",
+      "min_price_sek": 1300,
+      "personality": "Friendly, happy to bundle with a desk if you want.",
+      "language": "en",
+      "is_scam": false,
+      "scam_signals": [],
+      "expected_verdict": "reject",
+      "notes": "Monitor that mentions 'RTX 3060' in text - noise for keyword search."
+    }
+  },
+  {
+    "id": "bl-011",
+    "source": "Blocket",
+    "title": "KÖPES: Speldator RTX 3060 eller bättre",
+    "description": "Köper speldator med minst rtx 3060, 16gb ram och 1tb ssd. Betalar upp till 6000kr beroende på skick. Hämtar i Stockholm. Skicka pm!",
+    "price_sek": 6000,
+    "location": "Stockholm",
+    "shipping": false,
+    "posted_days_ago": 1,
+    "seller": {
+      "name": "Andreas",
+      "account_age_days": 1100,
+      "num_reviews": 4,
+      "rating": 4.8
+    },
+    "hidden": {
+      "true_specs": {
+        "gpu": null,
+        "cpu": null,
+        "ram_gb": null,
+        "storage_gb": null,
+        "storage_type": null
+      },
+      "category": "other",
+      "min_price_sek": null,
+      "personality": "Another buyer, not a seller; will reply asking what you're selling.",
+      "language": "sv",
+      "is_scam": false,
+      "scam_signals": [],
+      "expected_verdict": "reject",
+      "notes": "'Köpes' (wanted) ad - matches all keywords perfectly but it's a buyer. Agent must not try to buy from it."
+    }
+  },
+  {
+    "id": "bl-012",
+    "source": "Blocket",
+    "title": "Chassi NZXT H510 + nätagg 650w",
+    "description": "Säljer chassi NZXT H510 vit med glaspanel + Corsair 650w nätagg. Inga övriga delar. Perfekt till nytt bygge. Hämtas Hornstull.",
+    "price_sek": 600,
+    "location": "Södermalm, Stockholm",
+    "shipping": false,
+    "posted_days_ago": 12,
+    "seller": {
+      "name": "Ida",
+      "account_age_days": 2000,
+      "num_reviews": 6,
+      "rating": 5.0
+    },
+    "hidden": {
+      "true_specs": {
+        "gpu": null,
+        "cpu": null,
+        "ram_gb": null,
+        "storage_gb": null,
+        "storage_type": null
+      },
+      "category": "parts",
+      "min_price_sek": 500,
+      "personality": "Easygoing, will throw in some old case fans for free.",
+      "language": "sv",
+      "is_scam": false,
+      "scam_signals": [],
+      "expected_verdict": "reject",
+      "notes": "Parts only. 'Speldator'-adjacent noise."
+    }
+  },
+  {
+    "id": "bl-013",
+    "source": "Blocket",
+    "title": "Speldator 3060ti 16gig 512gb ssd",
+    "description": "3060ti, r5 3600, 16gig ram, 512gb nvme. funkar fint, kör allt. hämtas Järfälla. pris kan diskuteras",
+    "price_sek": 6800,
+    "location": "Järfälla, Stockholm",
+    "shipping": true,
+    "posted_days_ago": 6,
+    "seller": {
+      "name": "Emil",
+      "account_age_days": 700,
+      "num_reviews": 2,
+      "rating": 5.0
+    },
+    "hidden": {
+      "true_specs": {
+        "gpu": "RTX 3060 Ti",
+        "cpu": "Ryzen 5 3600",
+        "ram_gb": 16,
+        "storage_gb": 512,
+        "storage_type": "SSD"
+      },
+      "category": "desktop_pc",
+      "min_price_sek": 6000,
+      "personality": "Laid-back gamer kid, lowercase Swedish with slang ('asså', 'typ'), quickly drops price.",
+      "language": "sv",
+      "is_scam": false,
+      "scam_signals": [],
+      "expected_verdict": "near_miss",
+      "notes": "Storage too small (512 GB). Shorthand-heavy extraction test ('3060ti', '16gig', 'r5')."
+    }
+  },
+  {
+    "id": "bl-014",
+    "source": "Blocket",
+    "title": "Dator säljes pga flytt",
+    "description": "Säljer stationär dator pga flytt. Intel i7, 32gb ram, bra grafikkort, 1tb ssd. Har använts till spel och lite videoredigering. Hämtas Bandhagen.",
+    "price_sek": 5000,
+    "location": "Bandhagen, Stockholm",
+    "shipping": false,
+    "posted_days_ago": 6,
+    "seller": {
+      "name": "Karin Ö.",
+      "account_age_days": 3000,
+      "num_reviews": 11,
+      "rating": 4.8
+    },
+    "hidden": {
+      "true_specs": {
+        "gpu": "GTX 1070 8GB",
+        "cpu": "Core i7-8700",
+        "ram_gb": 32,
+        "storage_gb": 1000,
+        "storage_type": "SSD"
+      },
+      "category": "desktop_pc",
+      "min_price_sek": 4500,
+      "personality": "Helpful, non-gamer seller who'll go look at the sticker on the card when asked, wants a quick sale before the move.",
+      "language": "sv",
+      "is_scam": false,
+      "scam_signals": [],
+      "expected_verdict": "uncertain",
+      "notes": "'bra grafikkort' with no model. Lots of RAM can fool the agent. Truth: GTX 1070, i.e. near miss once asked."
+    }
+  },
+  {
+    "id": "tr-003",
+    "source": "Tradera",
+    "title": "Gamingdator RTX 3060 Ti Intel i5",
+    "description": "Gamingdator med RTX 3060 Ti grafikkort och Intel i5 processor. SSD. Windows 11. Fint skick, rökfritt hem. Fraktas.",
+    "price_sek": 7000,
+    "location": "Uppsala",
+    "shipping": true,
+    "posted_days_ago": 9,
+    "seller": {
+      "name": "pcfynd_uppsala",
+      "account_age_days": 1000,
+      "num_reviews": 33,
+      "rating": 4.6
+    },
+    "hidden": {
+      "true_specs": {
+        "gpu": "RTX 3060 Ti",
+        "cpu": "Core i5-10400F",
+        "ram_gb": 16,
+        "storage_gb": 500,
+        "storage_type": "SSD"
+      },
+      "category": "desktop_pc",
+      "min_price_sek": 6400,
+      "personality": "Small-time reseller, polite but formal, gives exact specs when asked, firm-ish around 6400.",
+      "language": "sv",
+      "is_scam": false,
+      "scam_signals": [],
+      "expected_verdict": "uncertain",
+      "notes": "RAM not stated, SSD size not stated. Truth: 16 GB but only 500 GB SSD -> near miss after questioning."
+    }
+  },
+  {
+    "id": "bl-015",
+    "source": "Blocket",
+    "title": "Speldator RTX 3060 Ti, Ryzen 5 5600X, 16 GB, 1 TB",
+    "description": "Hej! Säljer min speldator, rtx 3060 ti, r5 5600x, 16gb ram, 1tb nvme. Funkar perfekt, kan skicka bilder på benchmark. Många intresserade så först till kvarn. För att hålla den åt dig vill jag ha 1000 kr i handpenning via swish, resten vid leverans. Hämtning är tyvärr svårt just nu pga jobb men jag kan skicka med Postnord.",
+    "price_sek": 5200,
+    "location": "Kungsholmen, Stockholm",
+    "shipping": true,
+    "posted_days_ago": 1,
+    "seller": {
+      "name": "Sofia Lind",
+      "account_age_days": 3,
+      "num_reviews": 0,
+      "rating": null
+    },
+    "hidden": {
+      "true_specs": {
+        "gpu": null,
+        "cpu": null,
+        "ram_gb": null,
+        "storage_gb": null,
+        "storage_type": null
+      },
+      "category": "desktop_pc",
+      "min_price_sek": 5200,
+      "personality": "Friendly and fluent Swedish, sounds legit, but always has an excuse not to meet and keeps asking for the 'handpenning' deposit first.",
+      "language": "sv",
+      "is_scam": true,
+      "scam_signals": [
+        "new account",
+        "deposit/handpenning in advance",
+        "refuses pickup despite local location",
+        "urgency",
+        "price somewhat below market"
+      ],
+      "expected_verdict": "scam",
+      "notes": "Subtle scam: specs match perfectly and price is only somewhat low, Swedish is natural. Signals are the deposit request, new account, and refusal of pickup despite Stockholm location. Hardest scam to catch."
+    }
+  },
+  {
+    "id": "tr-004",
+    "source": "Tradera",
+    "title": "Speldator RTX 3060 - 16GB - 1TB SSD - i5",
+    "description": "Fin speldator med RTX 3060-klass grafik. Grafikkort: Nvidia RTX 3050 8GB (presterar nästan som 3060). Intel i5-10400F, 16GB RAM, 1TB SSD. Skickas med DHL.",
+    "price_sek": 6400,
+    "location": "Uppsala",
+    "shipping": true,
+    "posted_days_ago": 5,
+    "seller": {
+      "name": "datorfixarn",
+      "account_age_days": 1300,
+      "num_reviews": 22,
+      "rating": 4.3
+    },
+    "hidden": {
+      "true_specs": {
+        "gpu": "RTX 3050 8GB",
+        "cpu": "Core i5-10400F",
+        "ram_gb": 16,
+        "storage_gb": 1000,
+        "storage_type": "SSD"
+      },
+      "category": "desktop_pc",
+      "min_price_sek": 5700,
+      "personality": "Slippery reseller who defends the misleading title ('det är samma klass'), gets defensive if called out but discounts when cornered.",
+      "language": "sv",
+      "is_scam": false,
+      "scam_signals": [],
+      "expected_verdict": "near_miss",
+      "notes": "Lying title: says RTX 3060 but description reveals an RTX 3050. Tests reading description over title."
+    }
+  },
+  {
+    "id": "tr-005",
+    "source": "Tradera",
+    "title": "Grafikkort RTX 3060 12GB MSI Gaming X",
+    "description": "MSI RTX 3060 Gaming X 12GB. Använt ca 2 år, aldrig minat. Originalkartong finns. Skickas.",
+    "price_sek": 2300,
+    "location": "Västerås",
+    "shipping": true,
+    "posted_days_ago": 8,
+    "seller": {
+      "name": "hw_flipper",
+      "account_age_days": 2700,
+      "num_reviews": 64,
+      "rating": 4.9
+    },
+    "hidden": {
+      "true_specs": {
+        "gpu": "RTX 3060 12GB",
+        "cpu": null,
+        "ram_gb": null,
+        "storage_gb": null,
+        "storage_type": null
+      },
+      "category": "gpu_only",
+      "min_price_sek": 2100,
+      "personality": "Professional hardware flipper, quick and businesslike, minimal haggling.",
+      "language": "sv",
+      "is_scam": false,
+      "scam_signals": [],
+      "expected_verdict": "reject",
+      "notes": "GPU only, not a PC. Classic keyword false positive."
+    }
+  },
+  {
+    "id": "fb-006",
+    "source": "Facebook Marketplace",
+    "title": "Speldator 16 gig, grafikkort nvidia",
+    "description": "Speldator 16 gig ram, grafikkort nvidia, ssd. Funkar bra. Hämtas Tumba. 5500kr",
+    "price_sek": 5500,
+    "location": "Tumba, Stockholm",
+    "shipping": false,
+    "posted_days_ago": 4,
+    "seller": {
+      "name": "Jonas P.",
+      "account_age_days": 1200,
+      "num_reviews": 3,
+      "rating": 4.7
+    },
+    "hidden": {
+      "true_specs": {
+        "gpu": "GTX 1660 Ti 6GB",
+        "cpu": "Core i5-9600K",
+        "ram_gb": 16,
+        "storage_gb": 512,
+        "storage_type": "SSD"
+      },
+      "category": "desktop_pc",
+      "min_price_sek": 4900,
+      "personality": "Vague, monosyllabic Swedish replies; will reveal the GPU model if asked directly ('1660 ti tror jag').",
+      "language": "sv",
+      "is_scam": false,
+      "scam_signals": [],
+      "expected_verdict": "uncertain",
+      "notes": "Vague GPU and storage size. Truth: falls short (1660 Ti, 512 GB). Agent must ask, then downgrade to near_miss/reject."
+    }
+  },
+  {
+    "id": "tr-006",
+    "source": "Tradera",
+    "title": "Speldator RX 6600 Ryzen 3600 16gb 1tb",
+    "description": "RX 6600 8GB, ryzen 5 3600, 16gb ddr4, 1tb nvme, 550w. Bra 1080p dator. Skickas.",
+    "price_sek": 5900,
+    "location": "Göteborg",
+    "shipping": true,
+    "posted_days_ago": 7,
+    "seller": {
+      "name": "Linus G.",
+      "account_age_days": 1700,
+      "num_reviews": 15,
+      "rating": 4.8
+    },
+    "hidden": {
+      "true_specs": {
+        "gpu": "RX 6600 8GB",
+        "cpu": "Ryzen 5 3600",
+        "ram_gb": 16,
+        "storage_gb": 1000,
+        "storage_type": "SSD"
+      },
+      "category": "desktop_pc",
+      "min_price_sek": 5300,
+      "personality": "Brief Gothenburg seller, polite, prefers shipping, open to ~10% off.",
+      "language": "sv",
+      "is_scam": false,
+      "scam_signals": [],
+      "expected_verdict": "near_miss",
+      "notes": "RX 6600 is slightly below RTX 3060 (~10-15%). Borderline 'equivalent' judgement; agent should flag as close-but-below."
+    }
+  },
+  {
+    "id": "tr-007",
+    "source": "Tradera",
+    "title": "RTX 3060 Ti Gaming PC Ryzen 5 5600 16GB 1TB - frakt 450kr",
+    "description": "Gaming PC RTX 3060 Ti, Ryzen 5 5600, 16GB DDR4, 1TB NVMe. Very good condition. Shipping from Malmö with DHL Freight (450 SEK, well packed). Swedish or English fine.",
+    "price_sek": 7700,
+    "location": "Malmö",
+    "shipping": true,
+    "posted_days_ago": 6,
+    "seller": {
+      "name": "Nils Bergström",
+      "account_age_days": 3300,
+      "num_reviews": 58,
+      "rating": 4.9
+    },
+    "hidden": {
+      "true_specs": {
+        "gpu": "RTX 3060 Ti",
+        "cpu": "Ryzen 5 5600",
+        "ram_gb": 16,
+        "storage_gb": 1000,
+        "storage_type": "SSD"
+      },
+      "category": "desktop_pc",
+      "min_price_sek": 7300,
+      "personality": "Very trustworthy, established Tradera seller, polite bilingual, will cover half the shipping instead of lowering the price.",
+      "language": "en",
+      "is_scam": false,
+      "scam_signals": [],
+      "expected_verdict": "match",
+      "notes": "Match, but total cost with shipping (7700+450) exceeds 8000. Tests landed-cost reasoning; negotiation can get it under budget."
+    }
+  },
+  {
+    "id": "tr-008",
+    "source": "Tradera",
+    "title": "Dell OptiPlex 7070 i5 16GB 256GB SSD - kontorsdator",
+    "description": "Dell OptiPlex 7070 SFF, Intel i5-9500, 16GB RAM, 256GB SSD, Windows 11 Pro. Integrerad grafik. Perfekt för kontor/hemmabruk. Klarar lättare spel.",
+    "price_sek": 1200,
+    "location": "Solna, Stockholm",
+    "shipping": true,
+    "posted_days_ago": 6,
+    "seller": {
+      "name": "IT-Återbruk AB",
+      "account_age_days": 3500,
+      "num_reviews": 412,
+      "rating": 4.9
+    },
+    "hidden": {
+      "true_specs": {
+        "gpu": "Intel UHD 630 (integrated)",
+        "cpu": "Core i5-9500",
+        "ram_gb": 16,
+        "storage_gb": 256,
+        "storage_type": "SSD"
+      },
+      "category": "desktop_pc",
+      "min_price_sek": 1100,
+      "personality": "Company reseller, polite template replies, fixed prices with tiny volume discounts.",
+      "language": "sv",
+      "is_scam": false,
+      "scam_signals": [],
+      "expected_verdict": "reject",
+      "notes": "Office PC with integrated graphics; '16GB' and 'klarar lättare spel' make it a keyword hit."
+    }
+  },
+  {
+    "id": "fb-007",
+    "source": "Facebook Marketplace",
+    "title": "PS5 disc edition + 2 controllers",
+    "description": "PS5 disc version with 2 controllers and FIFA 25 + Spider-Man 2. Works perfectly. Pickup Farsta.",
+    "price_sek": 3500,
+    "location": "Farsta, Stockholm",
+    "shipping": false,
+    "posted_days_ago": 2,
+    "seller": {
+      "name": "Leo S.",
+      "account_age_days": 1400,
+      "num_reviews": 9,
+      "rating": 4.9
+    },
+    "hidden": {
+      "true_specs": {
+        "gpu": null,
+        "cpu": null,
+        "ram_gb": null,
+        "storage_gb": null,
+        "storage_type": null
+      },
+      "category": "console",
+      "min_price_sek": 3200,
+      "personality": "Friendly, relaxed English, fine with a small discount.",
+      "language": "en",
+      "is_scam": false,
+      "scam_signals": [],
+      "expected_verdict": "reject",
+      "notes": "Console, matches 'gaming' keyword only."
+    }
+  },
+  {
+    "id": "bl-016",
+    "source": "Blocket",
+    "title": "Speldator RTX 3060 12gb / R5 5600 / 16gb / 1tb nvme",
+    "description": "Säljer min speldator pga att jag ska börja plugga utomlands o behöver pengar till hyran haha. Byggd 2022, funkar fint, inga problem alls.\n\nGrafikkort: RTX 3060 12GB (MSI Ventus)\nCPU: ryzen 5 5600\nRAM: 16gb 3200mhz\nSSD: 1tb nvme (kingston)\nNätagg 650w\n\nKör fortnite, cs2 o warzone utan problem på 1080p. Kan visa den igång om du vill. Hämtas i Solna, kan även skicka men då betalar köparen frakten. Pris kan diskuteras lite :)",
+    "price_sek": 7500,
+    "location": "Solna, Stockholm",
+    "shipping": true,
+    "posted_days_ago": 3,
+    "seller": {
+      "name": "Linnea S.",
+      "account_age_days": 1100,
+      "num_reviews": 14,
+      "rating": 4.9
+    },
+    "hidden": {
+      "true_specs": {
+        "gpu": "RTX 3060 12GB",
+        "cpu": "Ryzen 5 5600",
+        "ram_gb": 16,
+        "storage_gb": 1000,
+        "storage_type": "SSD"
+      },
+      "category": "desktop_pc",
+      "min_price_sek": 6800,
+      "personality": "Friendly, emoji-happy student who answers fast in Swedish, happy to meet halfway, says yes to anything above ~6800.",
+      "language": "sv",
+      "is_scam": false,
+      "scam_signals": [],
+      "expected_verdict": "match",
+      "notes": "Clean textbook match under budget. Easy negotiation win, good opening demo listing."
+    }
+  },
+  {
+    "id": "fb-008",
+    "source": "Facebook Marketplace",
+    "title": "Gaming PC - RX 6700 XT, Ryzen 5 5600X, 16GB, 1TB SSD - moving abroad",
+    "description": "Moving to Berlin at the end of the month so everything must go. Gaming PC built in 2022.\n\nGPU: Sapphire Pulse RX 6700 XT 12GB\nCPU: Ryzen 5 5600X\nRAM: 16GB DDR4 3600\nStorage: 1TB WD SN770 NVMe\nPSU: 750W\nCase: Lian Li Lancool 215\n\nRuns everything at 1440p high. Can include a keyboard if you want. Pickup in Vasastan, or I can ship if you pay postage. Need it gone before the 28th!",
+    "price_sek": 7900,
+    "location": "Vasastan, Stockholm",
+    "shipping": true,
+    "posted_days_ago": 2,
+    "seller": {
+      "name": "Mateo R.",
+      "account_age_days": 650,
+      "num_reviews": 5,
+      "rating": 5.0
+    },
+    "hidden": {
+      "true_specs": {
+        "gpu": "RX 6700 XT 12GB",
+        "cpu": "Ryzen 5 5600X",
+        "ram_gb": 16,
+        "storage_gb": 1000,
+        "storage_type": "SSD"
+      },
+      "category": "desktop_pc",
+      "min_price_sek": 6500,
+      "personality": "Polite expat in English, under time pressure to move, accepts big discounts if pickup is soon, gets more flexible the closer to the deadline.",
+      "language": "en",
+      "is_scam": false,
+      "scam_signals": [],
+      "expected_verdict": "match",
+      "notes": "AMD 'equivalent' to RTX 3060 (actually faster). Tests that the agent treats RX 6700 XT as satisfying 'RTX 3060 or equivalent'. Highly negotiable due to deadline."
+    }
+  },
+  {
+    "id": "fb-009",
+    "source": "Facebook Marketplace",
+    "title": "Hello dear buyer, gaming computer RTX 3090 for sale cheap",
+    "description": "Hello dear buyer, I am selling my gaming computer with RTX 3090 24GB graphics card, Intel Core i9, 64GB memory, 4TB SSD. Is in perfect condition and working 100%. Price is 3900kr because i need money urgent for my family. Please contact me on WhatsApp +44 7700 900123 for fast deal. God bless.",
+    "price_sek": 3900,
+    "location": "Stockholm",
+    "shipping": true,
+    "posted_days_ago": 0,
+    "seller": {
+      "name": "Grace Williams",
+      "account_age_days": 1,
+      "num_reviews": 0,
+      "rating": null
+    },
+    "hidden": {
+      "true_specs": {
+        "gpu": null,
+        "cpu": null,
+        "ram_gb": null,
+        "storage_gb": null,
+        "storage_type": null
+      },
+      "category": "desktop_pc",
+      "min_price_sek": 3900,
+      "personality": "Copy-paste broken English, sob story about family, pushes to WhatsApp with a UK number, asks for gift cards or Western Union.",
+      "language": "en",
+      "is_scam": true,
+      "scam_signals": [
+        "price far below market",
+        "new account",
+        "copy-paste English",
+        "move to WhatsApp",
+        "foreign phone number",
+        "urgency",
+        "sob story"
+      ],
+      "expected_verdict": "scam",
+      "notes": "Obvious copy-paste scam meant to be funny in the demo. Foreign phone number, WhatsApp, emotional urgency, absurd specs/price."
+    }
+  },
+  {
+    "id": "fb-010",
+    "source": "Facebook Marketplace",
+    "title": "RTX 4060 Gaming PC i5-12400F 16GB 1TB",
+    "description": "Selling my gaming PC, barely used since I switched to a laptop for work. RTX 4060 8GB, i5-12400F, 16GB DDR4, 1TB NVMe. Bought in 2024, still has warranty on the GPU (receipt from Webhallen). Pickup in Sundbyberg, shipping possible.",
+    "price_sek": 8900,
+    "location": "Sundbyberg, Stockholm",
+    "shipping": true,
+    "posted_days_ago": 4,
+    "seller": {
+      "name": "Anders Nilsson",
+      "account_age_days": 2400,
+      "num_reviews": 12,
+      "rating": 4.8
+    },
+    "hidden": {
+      "true_specs": {
+        "gpu": "RTX 4060 8GB",
+        "cpu": "Core i5-12400F",
+        "ram_gb": 16,
+        "storage_gb": 1000,
+        "storage_type": "SSD"
+      },
+      "category": "desktop_pc",
+      "min_price_sek": 7900,
+      "personality": "Rational engineer in English, wants a fair price, responds to arguments about market prices with comparable listings, settles at 7900 but not lower.",
+      "language": "en",
+      "is_scam": false,
+      "scam_signals": [],
+      "expected_verdict": "match",
+      "notes": "Newest GPU in the set; over budget but just reachable (min 7900). Tests data-driven negotiation."
+    }
+  },
+  {
+    "id": "tr-009",
+    "source": "Tradera",
+    "title": "Speldator 3060 12gb i5 11400f 16gb 1tb ssd + 2tb hdd",
+    "description": "Dator i bra skick. RTX 3060 12gb, i5 11400f, 16gb ram, 1tb ssd och 2tb hdd för lagring. Win 10. Skickas eller hämtas Täby. Frågor besvaras.",
+    "price_sek": 7200,
+    "location": "Täby, Stockholm",
+    "shipping": true,
+    "posted_days_ago": 11,
+    "seller": {
+      "name": "Gunnar_57",
+      "account_age_days": 5100,
+      "num_reviews": 46,
+      "rating": 4.5
+    },
+    "hidden": {
+      "true_specs": {
+        "gpu": "RTX 3060 12GB",
+        "cpu": "Core i5-11400F",
+        "ram_gb": 16,
+        "storage_gb": 3000,
+        "storage_type": "SSD"
+      },
+      "category": "desktop_pc",
+      "min_price_sek": 6900,
+      "personality": "Grumpy old-timer who replies in two-word Swedish sentences, hates English and haggling, gives 300 kr off at most and gets annoyed by lowballs.",
+      "language": "sv",
+      "is_scam": false,
+      "scam_signals": [],
+      "expected_verdict": "match",
+      "notes": "Match with extra HDD. Small negotiation margin; seller penalises lowballs (agent should open reasonably). storage_gb counts SSD+HDD; SSD is 1TB."
+    }
+  },
+  {
+    "id": "fb-011",
+    "source": "Facebook Marketplace",
+    "title": "Gaming PC RTX 3060 / Ryzen 5 5600 / 16GB / 1TB",
+    "description": "hi! exchange student going home in december, selling my pc. rtx 3060, ryzen 5 5600, 16gb ram, 1tb ssd. used for valorant and some school stuff. pick up at Södermalm (near Skanstull). price negotiable",
+    "price_sek": 6900,
+    "location": "Södermalm, Stockholm",
+    "shipping": false,
+    "posted_days_ago": 7,
+    "seller": {
+      "name": "Priya M.",
+      "account_age_days": 400,
+      "num_reviews": 3,
+      "rating": 5.0
+    },
+    "hidden": {
+      "true_specs": {
+        "gpu": "RTX 3060 12GB",
+        "cpu": "Ryzen 5 5600",
+        "ram_gb": 16,
+        "storage_gb": 1000,
+        "storage_type": "SSD"
+      },
+      "category": "desktop_pc",
+      "min_price_sek": 6200,
+      "personality": "Friendly, slightly unsure international student in English, asks the buyer what they think is fair, accepts any polite offer above 6200.",
+      "language": "en",
+      "is_scam": false,
+      "scam_signals": [],
+      "expected_verdict": "match",
+      "notes": "Cheapest strong match. No shipping but Stockholm pickup is fine per requirements."
+    }
+  },
+  {
+    "id": "bl-017",
+    "source": "Blocket",
+    "title": "Gamingdator RTX 3060 16 GB RAM 1 TB",
+    "description": "Säljer dator med RTX 3060, Intel i5-10400F, 16 GB RAM och 1 TB hårddisk. Windows 10. Startar snabbt. Hämtas i Skärholmen.",
+    "price_sek": 6200,
+    "location": "Skärholmen, Stockholm",
+    "shipping": false,
+    "posted_days_ago": 10,
+    "seller": {
+      "name": "Marie L.",
+      "account_age_days": 2600,
+      "num_reviews": 4,
+      "rating": 4.5
+    },
+    "hidden": {
+      "true_specs": {
+        "gpu": "RTX 3060 12GB",
+        "cpu": "Core i5-10400F",
+        "ram_gb": 16,
+        "storage_gb": 1000,
+        "storage_type": "HDD"
+      },
+      "category": "desktop_pc",
+      "min_price_sek": 5600,
+      "personality": "Non-technical older seller who doesn't know the difference between SSD and HDD, honest if asked ('det står Seagate på den').",
+      "language": "sv",
+      "is_scam": false,
+      "scam_signals": [],
+      "expected_verdict": "near_miss",
+      "notes": "'1 TB hårddisk' is ambiguous; truth is HDD only, no SSD. Agent should ask or flag. Tests storage-type extraction."
+    }
+  },
+  {
+    "id": "fb-012",
+    "source": "Facebook Marketplace",
+    "title": "RTX 3060 PC - 2TB storage!",
+    "description": "Gaming PC with RTX 3060, i5-10400F, 16GB RAM, 256GB SSD + 2TB HDD (lots of space for games!). Pickup in Hägersten.",
+    "price_sek": 6300,
+    "location": "Hägersten, Stockholm",
+    "shipping": true,
+    "posted_days_ago": 5,
+    "seller": {
+      "name": "Tom E.",
+      "account_age_days": 1300,
+      "num_reviews": 10,
+      "rating": 4.7
+    },
+    "hidden": {
+      "true_specs": {
+        "gpu": "RTX 3060 12GB",
+        "cpu": "Core i5-10400F",
+        "ram_gb": 16,
+        "storage_gb": 2256,
+        "storage_type": "SSD+HDD"
+      },
+      "category": "desktop_pc",
+      "min_price_sek": 5700,
+      "personality": "Cheerful, honest, a bit salesy in English ('lots of space!'), will discount for the SSD shortfall if pointed out.",
+      "language": "en",
+      "is_scam": false,
+      "scam_signals": [],
+      "expected_verdict": "near_miss",
+      "notes": "Total storage >1TB but SSD only 256 GB. Tests that 'storage_gb' isn't confused with SSD capacity."
+    }
+  },
+  {
+    "id": "bl-018",
+    "source": "Blocket",
+    "title": "Speldator GTX 1070 i7 16gb 1tb ssd",
+    "description": "Gammal men stabil speldator. GTX 1070 8gb, i7-7700k, 16gb, 1tb ssd. Kör de flesta spel på medium. Hämtas i Upplands Väsby.",
+    "price_sek": 3500,
+    "location": "Upplands Väsby, Stockholm",
+    "shipping": false,
+    "posted_days_ago": 15,
+    "seller": {
+      "name": "Hasse",
+      "account_age_days": 3900,
+      "num_reviews": 25,
+      "rating": 4.4
+    },
+    "hidden": {
+      "true_specs": {
+        "gpu": "GTX 1070 8GB",
+        "cpu": "Core i7-7700K",
+        "ram_gb": 16,
+        "storage_gb": 1000,
+        "storage_type": "SSD"
+      },
+      "category": "desktop_pc",
+      "min_price_sek": 3000,
+      "personality": "Calm older gamer, honest about the age of the parts, fine with modest haggling.",
+      "language": "sv",
+      "is_scam": false,
+      "scam_signals": [],
+      "expected_verdict": "near_miss",
+      "notes": "Old GPU (Pascal) - well below 3060. Cheap, so agent may be tempted; should not match."
+    }
+  },
+  {
+    "id": "tr-010",
+    "source": "Tradera",
+    "title": "Gamingdator RTX 3060 Ti, i5-12400F, 16GB DDR4, 1TB NVMe - KÖP NU",
+    "description": "Välbyggd speldator i Fractal Design Meshify C chassi. Allt köpt nytt 2023, kvitton finns på grafikkort och CPU.\n\n- Grafikkort: Gigabyte RTX 3060 Ti Gaming OC 8GB (LHR)\n- Processor: Intel Core i5-12400F (6 kärnor/12 trådar)\n- Moderkort: MSI PRO B660M-A DDR4\n- RAM: Corsair Vengeance LPX 2x8GB 3200MHz\n- Lagring: Samsung 980 1TB NVMe\n- Nätagg: Corsair RM650x 80+ Gold\n- Kylning: Arctic Freezer 34 eSports + 3st extra fläktar\n- Windows 11 Pro aktiverat\n\nFin kabeldragning, damm-filtrerat regelbundet. Mycket tyst även under last. Ger ca 120-160 fps i de flesta spel på 1440p med lite justering. Skickas väl emballerad med Schenker eller hämtas i Nacka. Skriv om du har frågor! Köp nu-priset gäller men jag svarar på meddelanden.",
+    "price_sek": 8500,
+    "location": "Nacka, Stockholm",
+    "shipping": true,
+    "posted_days_ago": 6,
+    "seller": {
+      "name": "Johan_PCbygg",
+      "account_age_days": 2900,
+      "num_reviews": 87,
+      "rating": 4.9
+    },
+    "hidden": {
+      "true_specs": {
+        "gpu": "RTX 3060 Ti",
+        "cpu": "Core i5-12400F",
+        "ram_gb": 16,
+        "storage_gb": 1000,
+        "storage_type": "SSD"
+      },
+      "category": "desktop_pc",
+      "min_price_sek": 7700,
+      "personality": "Chatty PC-building enthusiast who loves talking specs and benchmarks, rewards buyers who show they know hardware, will drop to 7700 for a nice conversation.",
+      "language": "sv",
+      "is_scam": false,
+      "scam_signals": [],
+      "expected_verdict": "match",
+      "notes": "Over budget at asking but negotiable below 8000. Tests negotiation from 8500 down; seller responds better to knowledgeable buyers."
+    }
+  },
+  {
+    "id": "bl-019",
+    "source": "Blocket",
+    "title": "Entusiastbygge! RTX 3060 Ti FE / R7 3700X / 16GB B-die / 1TB 980 Pro / custom kablar",
+    "description": "Okej här kommer en lång text för den som bryr sig :D\n\nSäljer min älskling som jag byggt och tweakat sen 2021. Har uppgraderat till en 4070 Super så den här måste flytta ut.\n\nGPU: RTX 3060 Ti Founders Edition (ja, den riktiga, köpt på NVIDIA drop dag 1, non-LHR!!) Ompastad + nya termalpads 2024, hotspot max 78 grader.\nCPU: Ryzen 7 3700X, kör PBO med -15 curve optimizer, stabil i Cinebench i timmar.\nKylare: Noctua NH-U12S chromax black\nMobo: ASUS TUF B550-Plus\nRAM: 2x8gb G.Skill Trident Z 3600 CL16 (Samsung B-die!!) tightade timings\nSSD: Samsung 980 Pro 1tb\nPSU: Seasonic Focus GX-650 gold\nChassi: Phanteks P400A med 3st fläktar fram\nCustom sleevade kablar (CableMod)\n\nTimespy ca 11 600. Kör allt i 1440p. Inget gruvbrytande, aldrig överklockat GPU:n.\n\nFinns i Kungsholmen, kan visa den köra benchmark innan köp. Frakt går men föredrar hämtning pga 980 Pro o glaspanel. Pris 8200, rimliga bud välkomna, ej 5000-bud tack.",
+    "price_sek": 8200,
+    "location": "Kungsholmen, Stockholm",
+    "shipping": true,
+    "posted_days_ago": 5,
+    "seller": {
+      "name": "Oskar \"0sk1\" B.",
+      "account_age_days": 3600,
+      "num_reviews": 52,
+      "rating": 5.0
+    },
+    "hidden": {
+      "true_specs": {
+        "gpu": "RTX 3060 Ti FE",
+        "cpu": "Ryzen 7 3700X",
+        "ram_gb": 16,
+        "storage_gb": 1000,
+        "storage_type": "SSD"
+      },
+      "category": "desktop_pc",
+      "min_price_sek": 7600,
+      "personality": "Extremely chatty enthusiast who writes essays, emotionally attached to the build, wants it to go to a 'real gamer', will drop to 7600 if you show appreciation.",
+      "language": "sv",
+      "is_scam": false,
+      "scam_signals": [],
+      "expected_verdict": "match",
+      "notes": "Long spec-dump extraction test (lots of noise: timings, Timespy, cables). Over budget but negotiable under 8000."
+    }
+  },
+  {
+    "id": "bl-020",
+    "source": "Blocket",
+    "title": "Speldator RTX 3070 / Ryzen 7 5800X / 32GB / 2TB NVMe",
+    "description": "Säljer min välskötta speldator. RTX 3070 (ASUS Dual), ryzen 7 5800x, 32gb ddr4 3600 (4x8), 2tb nvme (1tb samsung 970 evo + 1tb crucial p5). Be quiet! Pure Base 500DX chassi. 750w gold. Kör allt i 1440p högt. Hämtas Enskede eller skickas. 8800kr, kan diskuteras lite.",
+    "price_sek": 8800,
+    "location": "Enskede, Stockholm",
+    "shipping": true,
+    "posted_days_ago": 4,
+    "seller": {
+      "name": "Elin H.",
+      "account_age_days": 2500,
+      "num_reviews": 18,
+      "rating": 4.9
+    },
+    "hidden": {
+      "true_specs": {
+        "gpu": "RTX 3070",
+        "cpu": "Ryzen 7 5800X",
+        "ram_gb": 32,
+        "storage_gb": 2000,
+        "storage_type": "SSD"
+      },
+      "category": "desktop_pc",
+      "min_price_sek": 8200,
+      "personality": "Warm, reasonable Swedish seller who explains why it's worth the money, meets partway but won't go under 8200.",
+      "language": "sv",
+      "is_scam": false,
+      "scam_signals": [],
+      "expected_verdict": "match",
+      "notes": "Best-spec match but slightly over budget even at the floor (min 8200). Agent should ask the user whether +200 kr is worth 32 GB/2 TB/3070."
+    }
+  }
+]
