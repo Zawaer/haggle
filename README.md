@@ -120,8 +120,17 @@
   | Deals over budget | **0** |
   | Per hunt | **~54 s, ~61 Gemini calls** |
 
-  With **condense** compression on (2 runs, 10 threads): **100%** of the available discount captured, 0 deals
-  over budget, 857 kr saved per deal. These unpaired simulated runs do not establish unchanged negotiation quality.
+  condense on vs off, same request, 4 runs each (20 seller threads, 16 deals per side, 3 Oct):
+
+  | | condense on | condense off |
+  |---|---|---|
+  | Discount captured | 100% | 98.1% |
+  | Saved per deal | 925 kr | 906 kr |
+  | Over budget | 0 | 0 |
+  | Gemini calls / hunt | 78 | 80 |
+  | Text sent to the negotiator | **20.6% smaller** (39,452 → 31,307 chars over 26 compress calls) | — |
+
+  Small, unpaired simulated samples: read this as "no quality loss observed", not as condense improving results.
 
   Caveat: the sellers are simulated (Gemini with a hidden minimum price and a personality), so this measures
   the agent against our seller model, not real people.
