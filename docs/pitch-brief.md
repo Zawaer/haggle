@@ -49,7 +49,9 @@ Blocket tabs ahead of them.*
 - **98%** of vetting verdicts correct (41/42 against hidden ground truth)
 - **5/5 scams caught, 0 false alarms**; **12/12** genuine matches kept
 - **~1 minute and ~60 Gemini calls** from one sentence to negotiated deals
-- **600–1,400 kr saved per deal** in our runs; see `eval/negotiation_result.json` for the benchmark
+- **98.8% of the available discount captured** (asking price → seller's hidden floor), across 3 runs /
+  12 deals; **917 kr saved per deal on average (12.5%)**, **0 deals over budget**
+  (against simulated sellers: say so if asked)
 
 ## Partner tech (say it explicitly)
 

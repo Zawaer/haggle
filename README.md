@@ -59,9 +59,18 @@ Evaluated against the mock marketplace's hidden ground truth (`eval/eval_vetting
 | Scams caught | **5 / 5**, 0 false alarms |
 | Real matches kept | **12 / 12** |
 
-A full hunt (42 listings searched, 38 vetted, 5 parallel negotiations) takes **~50 seconds and ~60
-Gemini calls**. In recorded runs the agent negotiated 600–1,400 kr below asking per deal, usually
-landing on the seller's hidden minimum.
+Negotiation benchmark, 3 full hunts, 15 seller threads (`eval/eval_negotiation.py`):
+
+| | |
+|---|---|
+| Deals reached | **12 / 15** (the other 3: listing dropped mid-chat when the seller revealed a GTX 1070) |
+| Share of the available discount captured | **98.8%** (asking → seller's hidden minimum) |
+| Average saving | **917 kr per deal, 12.5% below asking** |
+| Deals over budget | **0** |
+| Per hunt | **~54 s, ~61 Gemini calls** |
+
+Caveat: the sellers are simulated (Gemini with a hidden minimum price and a personality), so this measures
+the agent against our seller model, not real people.
 
 ## Why a mock marketplace
 
