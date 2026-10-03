@@ -142,4 +142,4 @@ eval/eval_vetting.py    accuracy against ground truth
 
 ## Team
 
-Oscar, Sumhua, Toivo, Wilmer, René.
+Oskar, Songhua, Toivo, Wilmer, Rene.
