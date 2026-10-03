@@ -762,7 +762,7 @@
     try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); }
     catch (e) { showError("Microphone blocked. Allow mic access (the page must be https or localhost)."); return; }
     const type = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg"].find((t) => MediaRecorder.isTypeSupported(t)) || "";
-    mic.rec = new MediaRecorder(stream, type ? { mimeType: type } : undefined);
+    mic.rec = new MediaRecorder(stream, { ...(type ? { mimeType: type } : {}), audioBitsPerSecond: 24000 });
     mic.chunks = [];
     mic.rec.ondataavailable = (e) => e.data.size && mic.chunks.push(e.data);
     mic.rec.onstop = () => { stream.getTracks().forEach((t) => t.stop()); micSend(); };
@@ -789,7 +789,13 @@
     if (blob.size < 1500) { micLbl("Speak"); return; }
     mic.btn.disabled = true; micLbl("Transcribing…");
     try {
-      const r = await fetch("/api/transcribe", { method: "POST", headers: { "Content-Type": blob.type }, body: blob });
+      // small chunks: survives tunnels (e.g. Matrix OS port forwarding) that drop large request bodies
+      const id = Math.random().toString(36).slice(2, 10), CH = 24000;
+      for (let i = 0, off = 0; off < blob.size; i++, off += CH) {
+        const rc = await fetch(`/api/transcribe/chunk?id=${id}&i=${i}`, { method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: blob.slice(off, off + CH) });
+        if (!rc.ok) throw new Error(`upload failed (${rc.status})`);
+      }
+      const r = await fetch(`/api/transcribe/finish?id=${id}&mime=${encodeURIComponent(blob.type)}`, { method: "POST" });
       if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.status);
       const { text } = await r.json();
       if (!text) throw new Error("didn't catch that");

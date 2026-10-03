@@ -156,6 +156,31 @@ async def transcribe(request: Request):
         raise HTTPException(502, f"transcription failed: {str(e)[:200]}")
 
 
+_AUDIO = {}  # upload id -> list of chunks (chunked so it survives tunnels with small message limits)
+
+
+@app.post("/api/transcribe/chunk")
+async def transcribe_chunk(request: Request, id: str, i: int):
+    data = await request.body()
+    if len(data) > 256_000 or i > 400 or len(_AUDIO) > 50:
+        raise HTTPException(400, "chunk too large")
+    _AUDIO.setdefault(id, {})[i] = data
+    return {"ok": True}
+
+
+@app.post("/api/transcribe/finish")
+async def transcribe_finish(id: str, mime: str = "audio/webm"):
+    from .voice import transcribe as tr
+    parts = _AUDIO.pop(id, None)
+    if not parts:
+        raise HTTPException(400, "no audio uploaded")
+    data = b"".join(parts[k] for k in sorted(parts))
+    try:
+        return {"text": await tr(data, mime)}
+    except Exception as e:
+        raise HTTPException(502, f"transcription failed: {str(e)[:200]}")
+
+
 @app.get("/api/hunts/{hid}")
 async def snapshot(hid: str):
     return _hunt(hid).snapshot()
