@@ -71,14 +71,16 @@ def _summary(h):
         out["question_for_user"] = q["text"]
     short = [i for i in items if i["state"] == "shortlisted" and i.get("draft")]
     if short and not h.closed:
-        out["shortlist"] = [{"listing_id": i["id"], "title": i["listing"]["title"], "asking_sek": i["listing"]["price_sek"],
+        out["shortlist"] = [{"listing_id": i["id"], "title": i["listing"]["title"], "photo_url": i["listing"].get("photo"),
+                             "listing_url": i["listing"].get("url"), "asking_sek": i["listing"]["price_sek"],
                              "location": i["listing"]["location"], "score": i.get("score"),
                              "draft_message": (i.get("draft") or {}).get("message"),
                              "opening_offer_sek": (i.get("draft") or {}).get("offer_sek")} for i in short]
         out["next"] = "Show the shortlist and drafts to the user; call approve_outreach with the ids they approve."
     deals = [i for i in items if i["state"] in ("deal_offered", "confirmed")]
     if deals:
-        out["deals"] = [{"listing_id": i["id"], "title": i["listing"]["title"], **i["deal"], "state": i["state"]}
+        out["deals"] = [{"listing_id": i["id"], "title": i["listing"]["title"], "photo_url": i["listing"].get("photo"),
+                         **i["deal"], "state": i["state"]}
                         for i in sorted(deals, key=lambda i: i["deal"]["price_sek"])]
     if h.phase == "awaiting_confirmation":
         out["next"] = "Present the deals; confirm the user's choice, or approve new shortlisted listings after consent."

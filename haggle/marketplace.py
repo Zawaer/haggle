@@ -26,7 +26,13 @@ def get(listing_id):
 
 
 def public_view(l):
-    return {k: v for k, v in l.items() if k != "hidden"}
+    out = {k: v for k, v in l.items() if k != "hidden"}
+    if not out.get("photo"):
+        from .mockbay import stock_photo
+        out["photo"] = stock_photo(out)
+        out["photos"] = [out["photo"]] if out["photo"] else []
+        out["photo_is_stock"] = bool(out["photo"])
+    return out
 
 
 def _norm(s):

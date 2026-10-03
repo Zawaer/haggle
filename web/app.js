@@ -37,6 +37,9 @@
   const VLABEL = { type: "Type", gpu: "GPU", ram: "RAM", storage: "SSD", price: "Price", location: "Location", works: "Works" };
   const VORDER = ["type", "gpu", "ram", "storage", "price", "location", "works"];
   const MARKS = ["type", "gpu", "ram", "storage", "price", "location"]; // ledger columns
+  // listing photo (mockbay's real photos; stock PC photo for the local dataset). Hidden if it fails to load.
+  const ph = (l, cls) => l && l.photo
+    ? `<img class="ph ${cls}" src="${esc(l.photo)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onerror="this.remove()">` : "";
   const VICON = { pass: "✓", fail: "✗", uncertain: "?", negotiable: "↓" };
   const REJECTED = new Set(["reject"]);
   const LIVE_STATES = new Set(["approved", "negotiating"]);
@@ -389,7 +392,7 @@
       card = h(`<div class="lrow item" id="card-${esc(id)}">
         <span class="c-n mono"></span>
         <span class="c-src ${cls}">${name}</span>
-        <span class="c-title">
+        <span class="c-title ${l.photo ? "has-ph" : ""}">${ph(l, "thumb")}
           <span class="t" title="${esc(l.title)}">${it.isNew ? `<span class="newtag mono">new</span> ` : ""}${l.url ? `<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.title)}</a>` : esc(l.title)}</span>
           <span class="sub">${sub}</span>
           <span class="specs mono hidden"></span>
@@ -493,7 +496,7 @@
       : `<span class="muted">Asking ${kr(l.price_sek)}</span> <span class="arr">→</span> asks a question first`;
     const html = `<label class="draft" id="draft-${esc(ev.id)}">
       <input type="checkbox" checked data-id="${esc(ev.id)}">
-      <div class="draft-body">
+      <div class="draft-body">${ph(l, "draft-ph")}
         <div class="draft-to mono">To <b>${esc(l.seller?.name || "seller")}</b> · ${esc(SRC(l.source || "")[1])}</div>
         <div class="draft-title">${esc(l.title || ev.id)}</div>
         <div class="draft-offer mono">${offer}</div>
@@ -578,7 +581,7 @@
     if (!d || it.state !== "shortlisted") return;
     show(E2.watch, true);
     const offer = d.offer_sek ? `opening offer <b class="money">${kr(d.offer_sek)}</b>` : "asks a question first";
-    const node = h(`<div class="whit" id="whit-${esc(id)}">
+    const node = h(`<div class="whit" id="whit-${esc(id)}">${ph(l, "draft-ph")}
       <div class="draft-to mono">New listing · ${esc(SRC(l.source || "")[1])} · ${esc(l.location || "")} · asking ${kr(l.price_sek)} <span class="arr">→</span> ${offer}</div>
       <div class="draft-title">${esc(l.title || id)}</div>
       <blockquote class="draft-msg">${esc(d.message)}</blockquote>
@@ -621,7 +624,7 @@
     const l = it.listing || {};
     const [cls, name] = SRC(l.source || "");
     const el = h(`<article class="pane" id="pane-${esc(id)}">
-      <header class="pane-head">
+      <header class="pane-head">${ph(l, "pane-ph")}
         <div class="pane-meta mono"><span class="${cls}">${name}</span><span>${esc(l.seller?.name || "")}</span></div>
         <h3 class="pane-title" title="${esc(l.title)}">${esc(l.title || id)}</h3>
         <div class="pane-ask">Asking <b class="mono askv">${kr(l.price_sek)}</b></div>
@@ -807,7 +810,7 @@
       const chosen = confirmed && confirmed.id === id;
       const ask = d.asking_sek || it.listing.price_sek;
       const card = h(`<div class="receipt ${isBest && !confirmed ? "best" : ""} ${chosen ? "chosen" : ""} ${confirmed && !chosen ? "faded" : ""}" style="animation-delay:${i * 60}ms">
-        <div class="r-top mono"><span>${isBest ? "Recommended" : `Deal ${i + 1}`}</span><span>${esc(SRC(it.listing.source)[1])} · ${esc(id)}</span></div>
+        <div class="r-top mono"><span>${isBest ? "Recommended" : `Deal ${i + 1}`}</span><span>${esc(SRC(it.listing.source)[1])} · ${esc(id)}</span></div>${ph(it.listing, "r-ph")}
         <h3 class="r-title">${esc(it.listing.title)}</h3>
         <div class="r-specs mono">${specsLine(it.specs)}</div>
         <div class="r-rule"></div>
