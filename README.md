@@ -81,20 +81,20 @@ Before every move the buyer agent makes, haggle sends the listing text and the c
 the last two messages through condense.chat. The latest messages stay word for word, and listing
 extraction is never compressed (condense is lossy).
 
-In our test (same request, 4 runs with and 4 without, 16 deals each way):
+In our test (same request, 10 runs with and 10 without, 40 deals each way):
 
 | | Without condense | With condense |
 |---|---|---|
-| Negotiation context sent to Gemini | 39,452 chars | 31,307 chars (**−20.6%**) |
-| Share of possible discount won | 98.1% | 100% |
-| Average saved per deal | 906 kr | 925 kr |
+| Negotiation context sent to Gemini | 103,007 chars | 81,415 chars (**−21.0%**) |
+| Share of possible discount won | 97.9% | 98.8% |
+| Average saved per deal | 902 kr | 916 kr |
 | Deals over budget | 0 | 0 |
-| Gemini calls per hunt | 80 | 78 |
+| Gemini calls per hunt | 78 | 79 |
 
-So: about 20% less negotiation context, with no loss in deal quality. The context size is measured by haggle
-(characters before and after each `/v1/compress` call, 26 calls). Listing reading isn't compressed, so total
-Gemini usage falls by less. The samples are small and the sellers are simulated, so read the discount
-difference as noise: "no quality loss observed".
+So: about 21% less negotiation context, with no loss in deal quality. The context size is measured by haggle
+(characters before and after each `/v1/compress` call, 61 calls). Listing reading isn't compressed, so total
+Gemini usage falls by less. Per run the compression was steady (19–22%). The sellers are simulated and the discount difference is
+within run-to-run noise, so read it as "no quality loss observed".
 
 ## Team
 
