@@ -20,25 +20,35 @@ started it), with the negotiations running side by side.
 
 ## Try it
 
-**Live demo:** PUBLIC_URL (the dashboard; `?replay=1` replays a recorded run with no API calls).
-It's a free instance, so the first request after a quiet spell can take about a minute to wake it up.
+**Live demo:** https://haggle-p61s.onrender.com (sign in with the access token from our submission;
+`?replay=1` replays a recorded run with no API calls). It's a free instance, so the first request after a
+quiet spell can take about a minute to wake it up.
 
-**From your agent** (MCP, streamable HTTP): configure an `Authorization: Bearer <token>`
-header with the operator-provided access token (see the JSON configuration below).
+**Gemini CLI: one-command install** (MCP server + skill; it asks for the access token):
 
 ```bash
-# Gemini CLI
-gemini mcp add --scope user --transport http --timeout 600000 haggle PUBLIC_URL/mcp/
-# Claude Code
-claude mcp add --transport http haggle PUBLIC_URL/mcp/
+gemini extensions install https://github.com/Zawaer/haggle
 ```
 
-Then ask: *"Use haggle to find me a used gaming PC under 8,000 kr in Stockholm, at least an RTX 3060."*
-The agent starts a hunt and gives you a dashboard link. It shows you the shortlist and the drafted
-messages, and asks before contacting sellers. Later it shows the deals and asks which one to confirm.
+**Claude Code** (same skill, same MCP server):
+
+```bash
+claude mcp add --transport http haggle https://haggle-p61s.onrender.com/mcp/ \
+  --header "Authorization: Bearer <access token>"
+git clone https://github.com/Zawaer/haggle && mkdir -p ~/.claude/skills && cp -r haggle/skills/haggle ~/.claude/skills/
+```
+
+**Gemini app** (gemini.google.com → Skills): paste the skill from `skills/gemini-app.md`. It asks the
+questions in chat and hands you a link that starts the hunt in the dashboard.
+
+Then just say *"I want a PC"*. The skill (`skills/haggle/SKILL.md`, the same file for Claude Code and
+Gemini CLI) makes the agent ask what's missing in one message: budget, desktop or laptop, what it's for,
+pickup or shipping. Then it starts the hunt and gives you the dashboard link, shows you the shortlist and
+drafted messages, and asks before contacting sellers. Later it shows the deals and asks which one to
+confirm. haggle itself never asks follow-up questions: the agent (or the web app's question card) does.
 Everything is simulated: mockbay listings and simulated sellers. No real purchases or messages.
 
-Tools: `start_hunt`, `hunt_status`, `answer_question`, `approve_outreach`, `confirm_deal`, `resume_hunt`. Each call
+Tools: `clarify_request`, `start_hunt`, `hunt_status`, `answer_question`, `approve_outreach`, `confirm_deal`, `resume_hunt`. Each call
 waits at most ~75 s for the next decision point; the agent polls `hunt_status` until then.
 
 ## What the agent does
